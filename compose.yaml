@@ -1,0 +1,26 @@
+services:
+  frontend:
+    build: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-3001}:3000"
+    depends_on:
+      - backend
+  backend:
+    build: ./backend
+    ports:
+      - "${BACKEND_PORT:-8080}:8080"
+    environment:
+      - FIRESTORE_EMULATOR_HOST=${FIRESTORE_EMULATOR_HOST:-firestore:8081}
+      - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-golink-local}
+      - APP_DOMAIN=${APP_DOMAIN:-localhost}
+      - PORT=${PORT:-8080}
+      - FIREBASE_CREDENTIALS_JSON=${FIREBASE_CREDENTIALS_JSON:-}
+      - FIREBASE_CREDENTIALS_FILE=${FIREBASE_CREDENTIALS_FILE:-}
+    depends_on:
+      - firestore
+
+  firestore:
+    image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
+    entrypoint: [ "bash", "-c", "gcloud emulators firestore start --host-port=0.0.0.0:8081" ]
+    ports:
+      - "8081:8081"

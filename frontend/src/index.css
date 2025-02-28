@@ -1,0 +1,25 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
+body {
+  min-height: 100vh;
+}
+
+.link-table-container {
+  overflow-x: auto;
+}
+
+.truncate-url {
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+@media (max-width: 768px) {
+  .truncate-url {
+    max-width: 150px;
+  }
+}
