@@ -1,4 +1,5 @@
 import type React from "react"
+import { useAuth } from "../contexts/AuthContext"
 
 interface NavbarProps {
   darkMode: boolean
@@ -6,6 +7,8 @@ interface NavbarProps {
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ darkMode, onThemeToggle }) => {
+  const { user, isAuthenticated, login, logout, loading } = useAuth()
+
   return (
     <div className="navbar bg-base-200 shadow-md">
       <div className="flex-1">
@@ -13,7 +16,7 @@ export const Navbar: React.FC<NavbarProps> = ({ darkMode, onThemeToggle }) => {
           GoLink
         </a>
       </div>
-      <div className="flex-none">
+      <div className="flex-none gap-2">
         <button
           type="button"
           className="btn btn-ghost btn-circle"
@@ -58,6 +61,47 @@ export const Navbar: React.FC<NavbarProps> = ({ darkMode, onThemeToggle }) => {
             </svg>
           )}
         </button>
+
+        {loading ? (
+          <span className="loading loading-spinner loading-sm"></span>
+        ) : isAuthenticated ? (
+          <div className="dropdown dropdown-end">
+            <div
+              tabIndex={0}
+              role="button"
+              className="btn btn-ghost btn-circle avatar"
+            >
+              <div className="w-10 rounded-full">
+                {user?.picture ? (
+                  <img
+                    alt={`${user.name}'s profile`}
+                    src={user.picture}
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <div className="bg-primary text-primary-content grid place-items-center">
+                    {user?.name.substring(0, 2).toUpperCase()}
+                  </div>
+                )}
+              </div>
+            </div>
+            <ul
+              tabIndex={0}
+              className="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52"
+            >
+              <li className="p-2 text-sm opacity-70">{user?.email}</li>
+              <li>
+                <button onClick={logout} className="text-error">
+                  Logout
+                </button>
+              </li>
+            </ul>
+          </div>
+        ) : (
+          <button onClick={login} className="btn btn-sm btn-primary">
+            Login
+          </button>
+        )}
       </div>
     </div>
   )

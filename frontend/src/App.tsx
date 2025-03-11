@@ -5,11 +5,16 @@ import type { Link } from "./types/link"
 import { Navbar } from "./components/Navbar"
 import { LinkForm } from "./components/LinkForm"
 import { LinkList } from "./components/LinkList"
+import { AuthProvider, useAuth } from "./contexts/AuthContext"
 
-const API_BASE_URL = "http://localhost:8080/api"
-const APP_DOMAIN = process.env.REACT_APP_DOMAIN || "example.com"
+// 環境変数の参照方法をViteの形式に変更
+const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api"
+const APP_DOMAIN = import.meta.env.VITE_DOMAIN || "localhost:3001"
 
-const App: React.FC = () => {
+// Configure Axios default settings
+axios.defaults.withCredentials = true
+
+const AppContent: React.FC = () => {
   const [url, setUrl] = useState<string>("")
   const [short, setShort] = useState<string>("")
   const [links, setLinks] = useState<Link[]>([])
@@ -19,6 +24,9 @@ const App: React.FC = () => {
   const [editMode, setEditMode] = useState<boolean>(false)
   const [editingLink, setEditingLink] = useState<Link | null>(null)
   const [darkMode, setDarkMode] = useState<boolean>(false)
+
+  // Get authentication state from auth context
+  const { isAuthenticated, loading: authLoading } = useAuth()
 
   useEffect(() => {
     const prefersDark = window.matchMedia(
@@ -32,6 +40,9 @@ const App: React.FC = () => {
   }, [])
 
   const fetchLinks = useCallback(async () => {
+    // Skip if loading during authentication
+    if (authLoading) return
+
     setLoading(true)
     setError(null)
     try {
@@ -39,19 +50,29 @@ const App: React.FC = () => {
       setLinks(res.data || [])
     } catch (error) {
       console.error("Error fetching links:", error)
-      setError("Failed to fetch links. Please try again.")
-      setLinks([])
+      const axiosError = error as AxiosError
+      // Clear link list if authentication error (login prompt message is displayed in Navbar)
+      if (axiosError.response?.status === 401) {
+        setLinks([])
+      } else {
+        setError("Failed to fetch links. Please try again.")
+      }
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [authLoading])
 
   useEffect(() => {
     fetchLinks()
-  }, [fetchLinks])
+  }, [fetchLinks, isAuthenticated])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!isAuthenticated) {
+      setError("Please log in")
+      return
+    }
+
     setLoading(true)
     setError(null)
     setSuccess(null)
@@ -82,6 +103,10 @@ const App: React.FC = () => {
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!editingLink) return
+    if (!isAuthenticated) {
+      setError("Please log in")
+      return
+    }
 
     setLoading(true)
     setError(null)
@@ -111,6 +136,10 @@ const App: React.FC = () => {
 
   const handleDelete = async (shortCode: string) => {
     if (!window.confirm("Are you sure you want to delete this link?")) return
+    if (!isAuthenticated) {
+      setError("Please log in")
+      return
+    }
 
     setLoading(true)
     setError(null)
@@ -170,7 +199,7 @@ const App: React.FC = () => {
               xmlns="http://www.w3.org/2000/svg"
               className="stroke-current shrink-0 h-6 w-6"
               fill="none"
-              viewBox="0 0 24 24"
+              viewBox="0 24 24"
               role="img"
               aria-label="Error icon"
             >
@@ -222,6 +251,26 @@ const App: React.FC = () => {
           </div>
         )}
 
+        {!isAuthenticated && !authLoading && (
+          <div className="alert alert-info mb-4">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="stroke-current shrink-0 h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+                d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+              />
+            </svg>
+            <span>Please log in to create and manage links</span>
+          </div>
+        )}
+
         <LinkForm
           url={url}
           short={short}
@@ -236,7 +285,7 @@ const App: React.FC = () => {
 
         <LinkList
           links={links}
-          loading={loading}
+          loading={loading || authLoading}
           appDomain={APP_DOMAIN}
           onEdit={enterEditMode}
           onDelete={handleDelete}
@@ -252,6 +301,16 @@ const App: React.FC = () => {
         </div>
       </footer>
     </div>
+  )
+}
+
+const App: React.FC = () => {
+  console.log("App component rendered") // デバッグ用ログ
+
+  return (
+    <AuthProvider>
+      <AppContent />
+    </AuthProvider>
   )
 }
 

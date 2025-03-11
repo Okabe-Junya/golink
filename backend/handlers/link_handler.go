@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
+	"github.com/Okabe-Junya/golink-backend/auth"
 	"github.com/Okabe-Junya/golink-backend/interfaces"
 	"github.com/Okabe-Junya/golink-backend/logger"
 	"github.com/Okabe-Junya/golink-backend/models"
@@ -24,6 +26,21 @@ func NewLinkHandler(repo interfaces.LinkRepositoryInterface) *LinkHandler {
 	}
 }
 
+// getUserFromContext extracts the user from request context
+func getUserFromContext(r *http.Request) (string, string) {
+	// Try to get authenticated user from context
+	if user, ok := r.Context().Value("user").(*auth.User); ok && user != nil {
+		return user.ID, user.Email
+	}
+
+	// Fall back to header for backward compatibility
+	userID := r.Header.Get("X-User-ID")
+	if userID == "" {
+		userID = "anonymous"
+	}
+	return userID, ""
+}
+
 // CreateLink handles POST /api/links requests
 func (h *LinkHandler) CreateLink(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -34,10 +51,11 @@ func (h *LinkHandler) CreateLink(w http.ResponseWriter, r *http.Request) {
 
 	// Parse request body: short code and target URL are expected
 	var requestBody struct {
-		Short string `json:"short"`
-		URL   string `json:"url"`
+		Short        string   `json:"short"`
+		URL          string   `json:"url"`
+		AccessLevel  string   `json:"access_level,omitempty"`
+		AllowedUsers []string `json:"allowed_users,omitempty"`
 	}
-
 	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		logger.Error("Failed to decode request body", err, nil)
@@ -69,12 +87,13 @@ func (h *LinkHandler) CreateLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user ID from auth middleware (from header)
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		userID = "anonymous"
-		logger.Info("Anonymous user creating link", logger.Fields{"short": requestBody.Short})
-	}
+	// Get user ID from context
+	userID, userEmail := getUserFromContext(r)
+	logger.Info("User creating link", logger.Fields{
+		"userID": userID,
+		"email":  userEmail,
+		"short":  requestBody.Short,
+	})
 
 	ctx := context.Background()
 
@@ -92,9 +111,22 @@ func (h *LinkHandler) CreateLink(w http.ResponseWriter, r *http.Request) {
 	// Create a new link with the target URL
 	link := models.NewLink(requestBody.Short, targetURL, userID)
 
-	// Enforce default access control
-	link.AccessLevel = models.AccessLevels.Public
-	link.AllowedUsers = []string{}
+	// Set access level if provided, otherwise use default
+	if requestBody.AccessLevel != "" &&
+		(requestBody.AccessLevel == models.AccessLevels.Public ||
+			requestBody.AccessLevel == models.AccessLevels.Private ||
+			requestBody.AccessLevel == models.AccessLevels.Restricted) {
+		link.AccessLevel = requestBody.AccessLevel
+	} else {
+		link.AccessLevel = models.AccessLevels.Public
+	}
+
+	// Set allowed users if provided and access level is restricted
+	if link.AccessLevel == models.AccessLevels.Restricted && len(requestBody.AllowedUsers) > 0 {
+		link.AllowedUsers = requestBody.AllowedUsers
+	} else {
+		link.AllowedUsers = []string{}
+	}
 
 	// Save the link
 	if err := h.repo.Create(ctx, link); err != nil {
@@ -107,9 +139,10 @@ func (h *LinkHandler) CreateLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	logger.Info("Link created successfully", logger.Fields{
-		"short":  link.Short,
-		"url":    link.URL,
-		"userID": userID,
+		"short":       link.Short,
+		"url":         link.URL,
+		"userID":      userID,
+		"accessLevel": link.AccessLevel,
 	})
 
 	// Return the created link
@@ -129,13 +162,12 @@ func (h *LinkHandler) GetLinks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user ID from context (would be set by auth middleware)
-	userID := r.Header.Get("X-User-ID")
+	// Get user ID from context
+	userID, _ := getUserFromContext(r)
 
 	// Get query parameters
 	accessLevel := r.URL.Query().Get("access_level")
 	createdBy := r.URL.Query().Get("created_by")
-
 	logger.Info("Getting links with filters", logger.Fields{
 		"userID":      userID,
 		"accessLevel": accessLevel,
@@ -234,8 +266,8 @@ func (h *LinkHandler) GetLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user ID from context (would be set by auth middleware)
-	userID := r.Header.Get("X-User-ID")
+	// Get user ID from context
+	userID, _ := getUserFromContext(r)
 
 	logger.Info("Getting link details", logger.Fields{
 		"short":  short,
@@ -302,10 +334,8 @@ func (h *LinkHandler) UpdateLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user ID from context (would be set by auth middleware)
-	userID := r.Header.Get("X-User-ID")
-	// ユーザーIDによるバリデーションを削除
-
+	// Get user ID from context
+	userID, _ := getUserFromContext(r)
 	logger.Info("Update link request received", logger.Fields{
 		"short":  short,
 		"userID": userID,
@@ -320,11 +350,22 @@ func (h *LinkHandler) UpdateLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// ユーザーIDによる作成者チェックを削除
+	// Only the creator can update this link
+	// If userId is anonymous, this allows also update by anonymous users
+	if userID != "anonymous" && link.CreatedBy != userID && auth.IsAuthEnabled() {
+		http.Error(w, "Only the creator can update this link", http.StatusForbidden)
+		logger.Warn("Unauthorized update attempt", logger.Fields{
+			"short":       short,
+			"requestUser": userID,
+			"creatorUser": link.CreatedBy,
+		})
+		return
+	}
 
-	// Only URL can be updated from the front-end
 	var requestBody struct {
-		URL string `json:"url,omitempty"`
+		URL          string   `json:"url,omitempty"`
+		AccessLevel  string   `json:"access_level,omitempty"`
+		AllowedUsers []string `json:"allowed_users,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -332,10 +373,24 @@ func (h *LinkHandler) UpdateLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Update the link
+	// Update the link fields
 	if requestBody.URL != "" {
 		link.URL = requestBody.URL
 	}
+
+	// Update access level if provided
+	if requestBody.AccessLevel != "" &&
+		(requestBody.AccessLevel == models.AccessLevels.Public ||
+			requestBody.AccessLevel == models.AccessLevels.Private ||
+			requestBody.AccessLevel == models.AccessLevels.Restricted) {
+		link.AccessLevel = requestBody.AccessLevel
+	}
+
+	// Update allowed users if provided and access level is restricted
+	if link.AccessLevel == models.AccessLevels.Restricted && requestBody.AllowedUsers != nil {
+		link.AllowedUsers = requestBody.AllowedUsers
+	}
+
 	link.UpdatedAt = time.Now()
 
 	// Save the updated link
@@ -349,9 +404,10 @@ func (h *LinkHandler) UpdateLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	logger.Info("Link updated successfully", logger.Fields{
-		"short":  short,
-		"userID": userID,
-		"newURL": link.URL,
+		"short":       short,
+		"userID":      userID,
+		"newURL":      link.URL,
+		"accessLevel": link.AccessLevel,
 	})
 
 	// Return the updated link
@@ -378,8 +434,8 @@ func (h *LinkHandler) DeleteLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get user ID from context (would be set by auth middleware)
-	userID := r.Header.Get("X-User-ID")
+	// Get user ID from context
+	userID, _ := getUserFromContext(r)
 
 	// Get the existing link
 	ctx := context.Background()
@@ -393,7 +449,19 @@ func (h *LinkHandler) DeleteLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Delete the link - allow any user to delete
+	// 認証が無効または匿名ユーザーの場合は権限チェックをスキップ
+	// それ以外の場合は作成者のみが削除可能
+	if userID != "anonymous" && link.CreatedBy != userID && auth.IsAuthEnabled() {
+		http.Error(w, "Only the creator can delete this link", http.StatusForbidden)
+		logger.Warn("Unauthorized delete attempt", logger.Fields{
+			"short":       short,
+			"requestUser": userID,
+			"creatorUser": link.CreatedBy,
+		})
+		return
+	}
+
+	// Delete the link
 	if err := h.repo.Delete(ctx, short); err != nil {
 		http.Error(w, "Failed to delete link", http.StatusInternalServerError)
 		logger.Error("Failed to delete link", err, logger.Fields{
@@ -422,36 +490,36 @@ func (h *LinkHandler) RedirectLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get the short code from the URL path
-	short := r.URL.Path[1:]
-	if short == "" {
-		http.Error(w, "Short code is required", http.StatusBadRequest)
-		logger.Warn("Short code is missing in redirect request", nil)
+	// Skip static file requests and special paths
+	path := r.URL.Path[1:] // Remove leading slash
+	if path == "" || path == "index.html" || path == "favicon.ico" ||
+		strings.HasPrefix(path, "static/") || strings.HasPrefix(path, "assets/") {
+		http.NotFound(w, r)
 		return
 	}
 
-	logger.Info("Redirect request received", logger.Fields{"short": short})
+	logger.Info("Redirect request received", logger.Fields{"short": path})
 
-	// Get user ID from context (would be set by auth middleware)
-	userID := r.Header.Get("X-User-ID")
+	// Get user ID from context
+	userID, _ := getUserFromContext(r)
 
 	// Get the link
 	ctx := context.Background()
-	link, err := h.repo.GetByShort(ctx, short)
+	link, err := h.repo.GetByShort(ctx, path)
 	if err != nil {
 		http.Error(w, "Link not found", http.StatusNotFound)
-		logger.Error("Link not found for redirect", err, logger.Fields{"short": short})
+		logger.Error("Link not found for redirect", err, logger.Fields{"short": path})
 		return
 	}
 
 	// Check access control
 	hasAccess := true
 	if userID != "" {
-		hasAccess, err = h.repo.CheckAccess(ctx, short, userID)
+		hasAccess, err = h.repo.CheckAccess(ctx, path, userID)
 		if err != nil {
 			http.Error(w, "Failed to check access", http.StatusInternalServerError)
 			logger.Error("Failed to check access for redirect", err, logger.Fields{
-				"short":  short,
+				"short":  path,
 				"userID": userID,
 			})
 			return
@@ -464,7 +532,7 @@ func (h *LinkHandler) RedirectLink(w http.ResponseWriter, r *http.Request) {
 	if !hasAccess {
 		http.Error(w, "Access denied", http.StatusForbidden)
 		logger.Warn("Access denied for redirect", logger.Fields{
-			"short":       short,
+			"short":       path,
 			"userID":      userID,
 			"accessLevel": link.AccessLevel,
 		})
@@ -475,13 +543,13 @@ func (h *LinkHandler) RedirectLink(w http.ResponseWriter, r *http.Request) {
 	go func() {
 		// Use a new context for the background operation
 		ctx := context.Background()
-		if err := h.repo.IncrementClickCount(ctx, short); err != nil {
-			logger.Error("Failed to increment click count", err, logger.Fields{"short": short})
+		if err := h.repo.IncrementClickCount(ctx, path); err != nil {
+			logger.Error("Failed to increment click count", err, logger.Fields{"short": path})
 		}
 	}()
 
 	logger.Info("Redirecting to target URL", logger.Fields{
-		"short":     short,
+		"short":     path,
 		"targetURL": link.URL,
 		"userID":    userID,
 	})

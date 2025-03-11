@@ -2,6 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react"
 import "@testing-library/jest-dom"
 import { LinkList } from "../LinkList"
 import type { Link } from "../../types/link"
+import { vi } from 'vitest';
 
 describe("LinkList", () => {
   const mockLinks: Link[] = [
@@ -33,9 +34,9 @@ describe("LinkList", () => {
     links: mockLinks,
     loading: false,
     appDomain: "example.com",
-    onEdit: jest.fn(),
-    onDelete: jest.fn(),
-    onCopy: jest.fn(),
+    onEdit: vi.fn(),
+    onDelete: vi.fn(),
+    onCopy: vi.fn(),
   }
 
   test("renders list of links", () => {
@@ -82,7 +83,7 @@ describe("LinkList", () => {
   test("displays empty state when no links", () => {
     render(<LinkList {...defaultProps} links={[]} />)
     expect(
-      screen.getByText("No links found. Create your first link above!")
+      screen.getByText("No links found. Create your first link above!"),
     ).toBeInTheDocument()
   })
 })

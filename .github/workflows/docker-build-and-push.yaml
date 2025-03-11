@@ -30,7 +30,13 @@ jobs:
 
       - name: Build and Push Docker image for ${{ matrix.component }}
         run: |
-          IMAGE_TAG="${{ github.event_name == 'release' && github.event.release.tag_name || 'latest' }}"
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG_NAME=$(echo "${{ github.event.release.tag_name }}" | tr '[:upper:]' '[:lower:]')
+          else
+            TAG_NAME="latest"
+          fi
+          REPO_OWNER=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+
           docker buildx build --push \
-            --tag ghcr.io/${{ github.repository_owner }}/golink-${{ matrix.component }}:${IMAGE_TAG} \
+            --tag ghcr.io/${REPO_OWNER}/golink-${{ matrix.component }}:${TAG_NAME} \
             ${{ matrix.component }}
