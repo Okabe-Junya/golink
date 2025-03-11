@@ -3,6 +3,7 @@ package mocks
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/Okabe-Junya/golink-backend/interfaces"
@@ -26,6 +27,34 @@ func NewMockLinkRepository() *MockLinkRepository {
 
 // Create adds a new link to the mock repository
 func (m *MockLinkRepository) Create(ctx context.Context, link *models.Link) error {
+	if link == nil {
+		return errors.New("link is nil")
+	}
+
+	// Validate required fields
+	if link.Short == "" {
+		return errors.New("short code is required")
+	}
+	if link.URL == "" {
+		return errors.New("URL is required")
+	}
+	if link.CreatedBy == "" {
+		return errors.New("creator ID is required")
+	}
+
+	// Validate URL format
+	if !strings.HasPrefix(link.URL, "http://") && !strings.HasPrefix(link.URL, "https://") {
+		return errors.New("invalid URL format")
+	}
+
+	// Validate access level
+	if link.AccessLevel != "" &&
+		link.AccessLevel != models.AccessLevels.Public &&
+		link.AccessLevel != models.AccessLevels.Private &&
+		link.AccessLevel != models.AccessLevels.Restricted {
+		return errors.New("invalid access level")
+	}
+
 	if _, exists := m.links[link.Short]; exists {
 		return errors.New("link already exists")
 	}

@@ -23,5 +23,5 @@ jobs:
         working-directory: ./frontend
 
       - name: Run tests
-        run: npm run jest
+        run: npm run test
         working-directory: ./frontend

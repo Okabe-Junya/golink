@@ -1,6 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react"
 import "@testing-library/jest-dom"
 import { LinkForm } from "../LinkForm"
+import { vi } from "vitest"
 
 describe("LinkForm", () => {
   const defaultProps = {
@@ -8,10 +9,10 @@ describe("LinkForm", () => {
     short: "",
     editMode: false,
     loading: false,
-    onUrlChange: jest.fn(),
-    onShortChange: jest.fn(),
-    onSubmit: jest.fn(),
-    onCancel: jest.fn(),
+    onUrlChange: vi.fn(),
+    onShortChange: vi.fn(),
+    onSubmit: vi.fn(),
+    onCancel: vi.fn(),
     appDomain: "example.com",
   }
 
@@ -38,8 +39,8 @@ describe("LinkForm", () => {
 
   test("handles form submission", () => {
     const { container } = render(<LinkForm {...defaultProps} />)
-    const form = container.querySelector('form')
-    if (!form) throw new Error('Form not found')
+    const form = container.querySelector("form")
+    if (!form) throw new Error("Form not found")
     fireEvent.submit(form)
     expect(defaultProps.onSubmit).toHaveBeenCalled()
   })

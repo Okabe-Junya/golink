@@ -138,8 +138,8 @@ func TestGetLinks(t *testing.T) {
 			name:           "Get All Links - No User ID",
 			queryParams:    map[string]string{},
 			expectedStatus: http.StatusOK,
-			userID:         "",
-			expectedCount:  4, // All links are accessible without user ID filtering
+			userID:         "", // Anonymous user
+			expectedCount:  3,  // Only public links are shown to anonymous users after auth implementation
 		},
 		{
 			name:           "Get All Links - With User ID",

@@ -1,26 +1,49 @@
 services:
   frontend:
     build: ./frontend
+    container_name: golink-frontend
     ports:
-      - "${FRONTEND_PORT:-3001}:3000"
+      - "${FRONTEND_PORT:-3001}:80"
+    environment:
+      - VITE_API_URL=http://localhost:${BACKEND_PORT:-8080}/api
+      - VITE_DOMAIN=${APP_DOMAIN:-localhost:3001}
     depends_on:
       - backend
+    networks:
+      - golink-network
   backend:
     build: ./backend
+    container_name: golink-backend
     ports:
       - "${BACKEND_PORT:-8080}:8080"
     environment:
       - FIRESTORE_EMULATOR_HOST=${FIRESTORE_EMULATOR_HOST:-firestore:8081}
       - GOOGLE_CLOUD_PROJECT=${GOOGLE_CLOUD_PROJECT:-golink-local}
-      - APP_DOMAIN=${APP_DOMAIN:-localhost}
-      - PORT=${PORT:-8080}
+      - APP_DOMAIN=${APP_DOMAIN:-localhost:8080}
+      - PORT=8080
+      - CORS_ORIGIN=http://localhost:${FRONTEND_PORT:-3001}
       - FIREBASE_CREDENTIALS_JSON=${FIREBASE_CREDENTIALS_JSON:-}
       - FIREBASE_CREDENTIALS_FILE=${FIREBASE_CREDENTIALS_FILE:-}
+      # 認証を無効にする（開発環境用）
+      - AUTH_DISABLED=${AUTH_DISABLED:-true}
+      # 認証情報（必要な場合は.envファイルで設定）
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID:-}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET:-}
+      - GOOGLE_ALLOWED_DOMAIN=${GOOGLE_ALLOWED_DOMAIN:-}
+      - SESSION_SECRET_KEY=${SESSION_SECRET_KEY:-}
+      - FRONTEND_URL=http://localhost:${FRONTEND_PORT:-3001}
     depends_on:
       - firestore
-
+    networks:
+      - golink-network
   firestore:
     image: gcr.io/google.com/cloudsdktool/cloud-sdk:latest
+    container_name: golink-firestore
     entrypoint: [ "bash", "-c", "gcloud emulators firestore start --host-port=0.0.0.0:8081" ]
     ports:
       - "8081:8081"
+    networks:
+      - golink-network
+networks:
+  golink-network:
+    driver: bridge

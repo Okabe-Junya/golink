@@ -1,11 +1,12 @@
 import { render, screen, fireEvent } from "@testing-library/react"
 import "@testing-library/jest-dom"
 import { Navbar } from "../Navbar"
+import { vi } from "vitest"
 
 describe("Navbar", () => {
   const defaultProps = {
     darkMode: false,
-    onThemeToggle: jest.fn(),
+    onThemeToggle: vi.fn(),
   }
 
   test("renders navbar with title", () => {
