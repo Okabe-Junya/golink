@@ -2,6 +2,8 @@ package auth
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -18,13 +20,24 @@ import (
 var (
 	// OAuth config
 	oauthConfig *oauth2.Config
-	// State string for OAuth flow
-	oauthStateString = "random-state-string"
 	// Domain constraint for Google Workspace
 	allowedDomain string
 	// Is authentication enabled
 	authEnabled = true
 )
+
+// generateStateToken creates a random state token
+func generateStateToken() (string, error) {
+	b := make([]byte, 32)
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.EncodeToString(b), nil
+}
+
+// stateCookieName is the name of the cookie that stores the OAuth state
+const stateCookieName = "oauth_state"
 
 // User represents an authenticated user
 type User struct {
@@ -101,11 +114,17 @@ func IsAuthEnabled() bool {
 }
 
 // GetLoginURL returns the URL to redirect users to for login
-func GetLoginURL() string {
+func GetLoginURL() (string, string, error) {
 	if !authEnabled || oauthConfig == nil {
-		return ""
+		return "", "", errors.New("authentication is not enabled")
 	}
-	return oauthConfig.AuthCodeURL(oauthStateString)
+
+	state, err := generateStateToken()
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate state token: %w", err)
+	}
+
+	return oauthConfig.AuthCodeURL(state), state, nil
 }
 
 // HandleLogin redirects the user to Google's OAuth login page
@@ -115,7 +134,24 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url := GetLoginURL()
+	url, state, err := GetLoginURL()
+	if err != nil {
+		http.Error(w, "Failed to generate login URL", http.StatusInternalServerError)
+		logger.Error("Failed to generate login URL", err, nil)
+		return
+	}
+
+	// Set the state cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     stateCookieName,
+		Value:    state,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   r.TLS != nil,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   int(5 * time.Minute.Seconds()), // State cookie expires in 5 minutes
+	})
+
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
@@ -126,12 +162,30 @@ func HandleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Get state from cookie
+	stateCookie, err := r.Cookie(stateCookieName)
+	if err != nil {
+		http.Error(w, "State cookie not found", http.StatusBadRequest)
+		logger.Error("State cookie not found", err, nil)
+		return
+	}
+
+	// Clear the state cookie immediately
+	http.SetCookie(w, &http.Cookie{
+		Name:     stateCookieName,
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   r.TLS != nil,
+		MaxAge:   -1,
+	})
+
 	// Verify state parameter
 	state := r.FormValue("state")
-	if state != oauthStateString {
+	if state == "" || state != stateCookie.Value {
 		http.Error(w, "Invalid OAuth state", http.StatusBadRequest)
 		logger.Error("Invalid OAuth state", nil, logger.Fields{
-			"expected": oauthStateString,
+			"expected": stateCookie.Value,
 			"received": state,
 		})
 		return

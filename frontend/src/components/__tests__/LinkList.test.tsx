@@ -2,7 +2,7 @@ import { render, screen, fireEvent } from "@testing-library/react"
 import "@testing-library/jest-dom"
 import { LinkList } from "../LinkList"
 import type { Link } from "../../types/link"
-import { vi } from 'vitest';
+import { vi } from "vitest"
 
 describe("LinkList", () => {
   const mockLinks: Link[] = [

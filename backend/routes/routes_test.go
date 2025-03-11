@@ -130,13 +130,15 @@ func TestRoutes(t *testing.T) {
 			handler.ServeHTTP(rr, req)
 
 			assert.Equal(t, tc.expectedStatus, rr.Code)
-
 			// Check CORS headers
-			assert.Equal(t, "*", rr.Header().Get("Access-Control-Allow-Origin"))
+			corsOrigin := os.Getenv("CORS_ORIGIN")
+			if corsOrigin == "" {
+				corsOrigin = "http://localhost:3001"
+			}
+			assert.Equal(t, corsOrigin, rr.Header().Get("Access-Control-Allow-Origin"))
 			assert.Equal(t, "GET, POST, PUT, DELETE, OPTIONS", rr.Header().Get("Access-Control-Allow-Methods"))
 			assert.Contains(t, rr.Header().Get("Access-Control-Allow-Headers"), "Content-Type")
 			assert.Contains(t, rr.Header().Get("Access-Control-Allow-Headers"), "X-User-ID")
-
 			// Check response body for specific cases
 			if tc.expectedBody != nil {
 				var responseBody map[string]string
@@ -231,23 +233,48 @@ func TestEndToEndLinkOperations(t *testing.T) {
 }
 
 func TestCORSMiddleware(t *testing.T) {
-	handler := setupTestRouter()
+	originalCorsOrigin := os.Getenv("CORS_ORIGIN")
+	defer os.Setenv("CORS_ORIGIN", originalCorsOrigin)
 
-	// Test OPTIONS request
-	req, _ := http.NewRequest(http.MethodOptions, "/api/links", nil)
-	rr := httptest.NewRecorder()
+	testCases := []struct {
+		name           string
+		corsOrigin     string
+		expectedOrigin string
+	}{
+		{
+			name:           "With CORS_ORIGIN set",
+			corsOrigin:     "http://test.example.com",
+			expectedOrigin: "http://test.example.com",
+		},
+		{
+			name:           "Without CORS_ORIGIN",
+			corsOrigin:     "",
+			expectedOrigin: "http://localhost:3001",
+		},
+	}
 
-	handler.ServeHTTP(rr, req)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			os.Setenv("CORS_ORIGIN", tc.corsOrigin)
+			handler := setupTestRouter()
 
-	// Check status code
-	assert.Equal(t, http.StatusOK, rr.Code)
+			req, _ := http.NewRequest(http.MethodOptions, "/api/links", nil)
+			rr := httptest.NewRecorder()
 
-	// Check CORS headers
-	assert.Equal(t, "*", rr.Header().Get("Access-Control-Allow-Origin"))
-	assert.Equal(t, "GET, POST, PUT, DELETE, OPTIONS", rr.Header().Get("Access-Control-Allow-Methods"))
-	assert.Contains(t, rr.Header().Get("Access-Control-Allow-Headers"), "Content-Type")
-	assert.Contains(t, rr.Header().Get("Access-Control-Allow-Headers"), "X-User-ID")
+			handler.ServeHTTP(rr, req)
 
-	// Ensure body is empty for OPTIONS request
-	assert.Empty(t, rr.Body.String())
+			// Check status code
+			assert.Equal(t, http.StatusOK, rr.Code)
+
+			// Check CORS headers
+			assert.Equal(t, tc.expectedOrigin, rr.Header().Get("Access-Control-Allow-Origin"))
+			assert.Equal(t, "GET, POST, PUT, DELETE, OPTIONS", rr.Header().Get("Access-Control-Allow-Methods"))
+			assert.Contains(t, rr.Header().Get("Access-Control-Allow-Headers"), "Content-Type")
+			assert.Contains(t, rr.Header().Get("Access-Control-Allow-Headers"), "Authorization")
+			assert.Equal(t, "true", rr.Header().Get("Access-Control-Allow-Credentials"))
+
+			// Ensure body is empty for OPTIONS request
+			assert.Empty(t, rr.Body.String())
+		})
+	}
 }

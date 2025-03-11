@@ -1,4 +1,5 @@
-import React, { createContext, useState, useEffect, useContext } from "react"
+import type React from "react"
+import { createContext, useState, useEffect, useContext, useCallback } from "react"
 import axios from "axios"
 
 // Get API base URL from environment variable
@@ -41,15 +42,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [error, setError] = useState<string | null>(null)
 
   // Function to fetch user information
-  const fetchUserInfo = async () => {
+  const fetchUserInfo = useCallback(async () => {
     try {
       setLoading(true)
       setError(null)
-
       const response = await axios.get(`${API_BASE_URL}/auth/user`, {
         withCredentials: true, // Include cookies
       })
-
       setUser(response.data)
       return true
     } catch (err) {
@@ -58,19 +57,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
         setUser(null)
         return false
       }
-
       setError("Failed to fetch authentication information")
       console.error("Failed to fetch user info:", err)
       return false
     } finally {
       setLoading(false)
     }
-  }
+  }, []) // Empty dependency array since all dependencies are stable
 
   // Fetch user information on initial load
   useEffect(() => {
     fetchUserInfo()
-  }, [])
+  }, [fetchUserInfo])
 
   // Login handling
   const login = () => {

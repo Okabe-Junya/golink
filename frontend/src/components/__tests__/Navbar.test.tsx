@@ -1,7 +1,7 @@
 import { render, screen, fireEvent } from "@testing-library/react"
 import "@testing-library/jest-dom"
 import { Navbar } from "../Navbar"
-import { vi } from 'vitest'
+import { vi } from "vitest"
 
 describe("Navbar", () => {
   const defaultProps = {

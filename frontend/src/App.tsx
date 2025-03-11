@@ -64,7 +64,7 @@ const AppContent: React.FC = () => {
 
   useEffect(() => {
     fetchLinks()
-  }, [fetchLinks, isAuthenticated])
+  }, [fetchLinks])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -255,11 +255,14 @@ const AppContent: React.FC = () => {
           <div className="alert alert-info mb-4">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="stroke-current shrink-0 h-6 w-6"
               fill="none"
               viewBox="0 0 24 24"
+              className="stroke-current shrink-0 w-6 h-6"
               stroke="currentColor"
+              role="img"
+              aria-label="Information"
             >
+              <title>Information Icon</title>
               <path
                 strokeLinecap="round"
                 strokeLinejoin="round"

@@ -63,14 +63,10 @@ export const Navbar: React.FC<NavbarProps> = ({ darkMode, onThemeToggle }) => {
         </button>
 
         {loading ? (
-          <span className="loading loading-spinner loading-sm"></span>
+          <span className="loading loading-spinner loading-sm" />
         ) : isAuthenticated ? (
           <div className="dropdown dropdown-end">
-            <div
-              tabIndex={0}
-              role="button"
-              className="btn btn-ghost btn-circle avatar"
-            >
+            <button className="btn btn-ghost btn-circle avatar" type="button">
               <div className="w-10 rounded-full">
                 {user?.picture ? (
                   <img
@@ -84,21 +80,22 @@ export const Navbar: React.FC<NavbarProps> = ({ darkMode, onThemeToggle }) => {
                   </div>
                 )}
               </div>
-            </div>
-            <ul
-              tabIndex={0}
-              className="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52"
-            >
+            </button>
+            <ul className="mt-3 z-[1] p-2 shadow menu menu-sm dropdown-content bg-base-100 rounded-box w-52">
               <li className="p-2 text-sm opacity-70">{user?.email}</li>
               <li>
-                <button onClick={logout} className="text-error">
+                <button onClick={logout} className="text-error" type="button">
                   Logout
                 </button>
               </li>
             </ul>
           </div>
         ) : (
-          <button onClick={login} className="btn btn-sm btn-primary">
+          <button
+            onClick={login}
+            className="btn btn-sm btn-primary"
+            type="button"
+          >
             Login
           </button>
         )}

@@ -26,8 +26,15 @@ func NewRouter(linkHandler *handlers.LinkHandler) *Router {
 // CORSMiddleware adds CORS headers to all responses
 func CORSMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Get CORS origin from environment variable
+		corsOrigin := os.Getenv("CORS_ORIGIN")
+		if corsOrigin == "" {
+			corsOrigin = "http://localhost:3001"
+			logger.Warn("CORS_ORIGIN not set, using default", logger.Fields{"origin": corsOrigin})
+		}
+
 		// Set CORS headers
-		w.Header().Set("Access-Control-Allow-Origin", "http://localhost:3001")
+		w.Header().Set("Access-Control-Allow-Origin", corsOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID, Authorization")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
