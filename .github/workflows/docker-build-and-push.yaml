@@ -7,7 +7,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  BASE_IMAGE_NAME: ${{ github.repository }}
+  REPO_IMAGE_NAME: ${{ github.repository }}
 
 jobs:
   build-and-push:
@@ -30,7 +30,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@902fa8ec7d6ecbf8d84d538b9b233a880e428804 # v5
         with:
-          images: ${{ env.REGISTRY }}/${{ env.BASE_IMAGE_NAME }}-${{ matrix.component }}
+          images: ${{ env.REGISTRY }}/${{ env.REPO_IMAGE_NAME }}-${{ matrix.component }}
           tags: latest,${{ github.ref_name }}
 
       - name: Set up Docker Buildx

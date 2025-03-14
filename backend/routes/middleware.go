@@ -161,8 +161,8 @@ func RateLimitMiddleware(next http.Handler) http.Handler {
 		defer mu.Unlock()
 
 		now := time.Now()
-		// Clean up old clients every 100 requests
-		if len(clients)%100 == 0 {
+		// Clean up old clients every 100 requests, but only when we have clients
+		if len(clients) > 0 && len(clients)%100 == 0 {
 			for clientIP, c := range clients {
 				if now.Sub(c.lastSeen) > 5*time.Minute {
 					delete(clients, clientIP)
