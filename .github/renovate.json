@@ -125,15 +125,15 @@
     },
     {
       "groupName": "golang.org/x/...",
-      "matchPackagePatterns": [
-        "^golang.org/x/"
-      ],
-      "automerge": true
+      "automerge": true,
+      "matchPackageNames": [
+        "/^golang.org/x//"
+      ]
     },
     {
       "groupName": "google.golang.org/...",
-      "matchPackagePatterns": [
-        "^google.golang.org/"
+      "matchPackageNames": [
+        "/^google.golang.org//"
       ]
     }
   ]
