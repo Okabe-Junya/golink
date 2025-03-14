@@ -1,0 +1,140 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "timezone": "Asia/Tokyo",
+  "schedule": [
+    "after 1am and before 6am on monday"
+  ],
+  "automergeSchedule": [
+    "after 1am and before 6am on monday"
+  ],
+  "prHourlyLimit": 0,
+  "updateNotScheduled": false,
+  "dependencyDashboard": true,
+  "internalChecksFilter": "none",
+  "autoApprove": true,
+  "postUpdateOptions": [
+    "npmDedupe",
+    "gomodTidy"
+  ],
+  "packageRules": [
+    {
+      "matchPackageNames": [
+        "*"
+      ],
+      "rangeStrategy": "replace"
+    },
+    {
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "minimumReleaseAge": "5 days",
+      "addLabels": [
+        "renovate/major"
+      ]
+    },
+    {
+      "matchUpdateTypes": [
+        "minor"
+      ],
+      "minimumReleaseAge": "5 days",
+      "addLabels": [
+        "renovate/minor"
+      ],
+      "automerge": true
+    },
+    {
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "minimumReleaseAge": "3 days",
+      "addLabels": [
+        "renovate/patch"
+      ],
+      "automerge": true
+    },
+    {
+      "matchUpdateTypes": [
+        "pin"
+      ],
+      "addLabels": [
+        "renovate/pin"
+      ],
+      "automerge": true
+    },
+    {
+      "matchDepTypes": [
+        "action"
+      ],
+      "pinDigests": true,
+      "matchPackageNames": [
+        "!actions/{/,}**"
+      ]
+    },
+    {
+      "groupName": "devDependencies",
+      "matchDepTypes": [
+        "devDependencies"
+      ]
+    },
+    {
+      "groupName": "Node.js version",
+      "matchFileNames": [
+        "**/.node-version"
+      ],
+      "allowedVersions": "/^[0-9]+[24680]\\.[0-9]+\\.[0-9]+$/"
+    },
+    {
+      "groupName": "Node.js version",
+      "matchPackageNames": [
+        "node",
+        "@types/node"
+      ],
+      "allowedVersions": "/^[0-9]+[24680]\\.[0-9]+\\.[0-9]+$/"
+    },
+    {
+      "groupName": "Node.js version",
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchPackageNames": [
+        "node"
+      ],
+      "allowedVersions": "/^[0-9]+[24680]\\.[0-9]+\\.[0-9]+$/"
+    },
+    {
+      "groupName": "React.js",
+      "matchPackageNames": [
+        "react",
+        "react-dom"
+      ]
+    },
+    {
+      "groupName": "Go version",
+      "matchDatasources": [
+        "golang-version"
+      ]
+    },
+    {
+      "groupName": "Go version",
+      "matchManagers": [
+        "dockerfile"
+      ],
+      "matchPackageNames": [
+        "golang"
+      ]
+    },
+    {
+      "groupName": "golang.org/x/...",
+      "matchPackagePatterns": [
+        "^golang.org/x/"
+      ],
+      "automerge": true
+    },
+    {
+      "groupName": "google.golang.org/...",
+      "matchPackagePatterns": [
+        "^google.golang.org/"
+      ]
+    }
+  ]
+}
