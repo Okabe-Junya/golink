@@ -7,7 +7,6 @@ import { LinkForm } from "./components/LinkForm"
 import { LinkList } from "./components/LinkList"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
 
-// 環境変数の参照方法をViteの形式に変更
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api"
 const APP_DOMAIN = import.meta.env.VITE_DOMAIN || "localhost:3001"
 

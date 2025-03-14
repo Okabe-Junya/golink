@@ -9,17 +9,20 @@ import (
 	"github.com/Okabe-Junya/golink-backend/auth"
 	"github.com/Okabe-Junya/golink-backend/handlers"
 	"github.com/Okabe-Junya/golink-backend/logger"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Router handles HTTP routing
 type Router struct {
-	linkHandler *handlers.LinkHandler
+	linkHandler   *handlers.LinkHandler
+	healthHandler *handlers.HealthHandler
 }
 
 // NewRouter creates a new Router
-func NewRouter(linkHandler *handlers.LinkHandler) *Router {
+func NewRouter(linkHandler *handlers.LinkHandler, healthHandler *handlers.HealthHandler) *Router {
 	return &Router{
-		linkHandler: linkHandler,
+		linkHandler:   linkHandler,
+		healthHandler: healthHandler,
 	}
 }
 
@@ -32,19 +35,16 @@ func CORSMiddleware(next http.Handler) http.Handler {
 			corsOrigin = "http://localhost:3001"
 			logger.Warn("CORS_ORIGIN not set, using default", logger.Fields{"origin": corsOrigin})
 		}
-
 		// Set CORS headers
 		w.Header().Set("Access-Control-Allow-Origin", corsOrigin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID, Authorization")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
-
 		// Handle preflight requests
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-
 		// Pass to the next middleware
 		next.ServeHTTP(w, r)
 	})
@@ -63,8 +63,12 @@ func (r *Router) SetupRoutes() http.Handler {
 	mux.HandleFunc("/api/auth/callback", auth.HandleCallback)
 	mux.HandleFunc("/api/auth/user", r.handleCurrentUser)
 
-	// Health check endpoint
-	mux.HandleFunc("/health", r.handleHealth)
+	// Health check endpoints
+	mux.HandleFunc("/health", r.healthHandler.SimpleHealthCheck)
+	mux.HandleFunc("/health/detailed", r.healthHandler.HealthCheck)
+
+	// Metrics endpoint (Prometheus)
+	mux.Handle("/metrics", promhttp.Handler())
 
 	// Redirect route (catch-all)
 	mux.HandleFunc("/", r.handleRedirect)
@@ -77,14 +81,28 @@ func (r *Router) SetupRoutes() http.Handler {
 			"/api/auth/callback",
 			"/api/auth/user",
 			"/health",
+			"/health/detailed",
+			"/metrics",
 			"/{short}",
 		},
 	})
 
-	// Apply middlewares in the correct order:
-	// 1. CORS middleware first so headers are always set
-	// 2. Authentication middleware second
-	handler := CORSMiddleware(mux)
+	// Apply middlewares in the correct order
+	// 1. RequestID middleware first to track requests through the system
+	// 2. Recovery middleware to catch panics
+	// 3. Metrics middleware to collect metrics
+	// 4. CORS middleware so headers are always set
+	// 5. SecurityHeaders middleware
+	// 6. RateLimit middleware
+	// 7. Auth middleware last
+
+	var handler http.Handler = mux
+	handler = RequestIDMiddleware(handler)
+	handler = RecoveryMiddleware(handler)
+	handler = MetricsMiddleware(handler)
+	handler = CORSMiddleware(handler)
+	handler = SecurityHeadersMiddleware(handler)
+	handler = RateLimitMiddleware(handler)
 
 	// Only apply auth middleware if not in test mode
 	if os.Getenv("TEST_MODE") != "true" {
@@ -153,15 +171,13 @@ func (r *Router) handleLinkByShort(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// handleHealth handles /health requests for health check
-func (r *Router) handleHealth(w http.ResponseWriter, req *http.Request) {
-	r.linkHandler.HealthCheck(w, req)
-}
-
 // handleRedirect handles /{short} requests for redirecting
 func (r *Router) handleRedirect(w http.ResponseWriter, req *http.Request) {
-	// Skip API routes and health check
-	if strings.HasPrefix(req.URL.Path, "/api/") || req.URL.Path == "/health" || req.URL.Path == "/" {
+	// Skip API routes, metrics and health check
+	if strings.HasPrefix(req.URL.Path, "/api/") ||
+		req.URL.Path == "/health" ||
+		req.URL.Path == "/health/detailed" ||
+		req.URL.Path == "/metrics" || req.URL.Path == "/" {
 		http.NotFound(w, req)
 		return
 	}
