@@ -20,9 +20,16 @@ func setupTestRouter() http.Handler {
 	os.Setenv("TEST_MODE", "true")
 	defer os.Unsetenv("TEST_MODE")
 
+	// モックリポジトリを作成
 	mockRepo := mocks.NewMockLinkRepository()
+
+	// ハンドラーを作成
 	linkHandler := handlers.NewLinkHandler(mockRepo)
-	router := routes.NewRouter(linkHandler)
+	healthHandler := handlers.NewHealthHandler(mockRepo)
+
+	// ルーターを作成
+	router := routes.NewRouter(linkHandler, healthHandler)
+
 	return router.SetupRoutes()
 }
 

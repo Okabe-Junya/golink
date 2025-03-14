@@ -2,15 +2,27 @@ import type React from "react"
 import type { Link } from "../types/link"
 import { formatDate, formatDateWithTime } from "../utils/date"
 
+/**
+ * Props for the LinkList component
+ */
 interface LinkListProps {
+  /** Array of links to display in the list */
   links: Link[]
+  /** Whether the component is loading data */
   loading: boolean
+  /** The domain where shortened links are hosted */
   appDomain: string
+  /** Callback function when edit button is clicked */
   onEdit: (link: Link) => void
+  /** Callback function when delete button is clicked */
   onDelete: (shortCode: string) => void
+  /** Callback function when copy button is clicked */
   onCopy: (shortCode: string) => void
 }
 
+/**
+ * A component that displays a table of shortened links with actions
+ */
 export const LinkList: React.FC<LinkListProps> = ({
   links,
   loading,
@@ -121,15 +133,17 @@ export const LinkList: React.FC<LinkListProps> = ({
                       </a>
                     </td>
                     <td>
-                      <div className="badge badge-outline">
-                        {link.access_level}
+                      <div className="flex flex-col gap-1">
+                        <div className="badge badge-outline">
+                          {link.access_level}
+                        </div>
+                        {link.access_level === "restricted" &&
+                          link.allowed_users.length > 0 && (
+                            <div className="text-xs opacity-70">
+                              Users: {link.allowed_users.join(", ")}
+                            </div>
+                          )}
                       </div>
-                      {link.access_level === "Restricted" &&
-                        link.allowed_users.length > 0 && (
-                          <div className="text-xs opacity-70 mt-1">
-                            Users: {link.allowed_users.join(", ")}
-                          </div>
-                        )}
                     </td>
                     <td>
                       <div className="badge badge-neutral">

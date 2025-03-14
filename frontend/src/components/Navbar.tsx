@@ -1,11 +1,21 @@
 import type React from "react"
 import { useAuth } from "../contexts/AuthContext"
 
+/**
+ * Props for the Navbar component
+ */
 interface NavbarProps {
+  /** Whether dark mode is enabled */
   darkMode: boolean
+  /** Callback function when theme toggle button is clicked */
   onThemeToggle: () => void
 }
 
+/**
+ * The navigation bar component that displays the app title, theme toggle, and authentication controls
+ * @param props - The component props
+ * @returns A navigation bar with theme and authentication controls
+ */
 export const Navbar: React.FC<NavbarProps> = ({ darkMode, onThemeToggle }) => {
   const { user, isAuthenticated, login, logout, loading } = useAuth()
 
@@ -63,10 +73,18 @@ export const Navbar: React.FC<NavbarProps> = ({ darkMode, onThemeToggle }) => {
         </button>
 
         {loading ? (
-          <span className="loading loading-spinner loading-sm" />
+          <span
+            className="loading loading-spinner loading-sm"
+            role="status"
+            aria-label="Loading"
+          />
         ) : isAuthenticated ? (
           <div className="dropdown dropdown-end">
-            <button className="btn btn-ghost btn-circle avatar" type="button">
+            <button
+              className="btn btn-ghost btn-circle avatar"
+              type="button"
+              aria-label={`${user?.name}'s profile`}
+            >
               <div className="w-10 rounded-full">
                 {user?.picture ? (
                   <img
