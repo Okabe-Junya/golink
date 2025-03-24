@@ -9,20 +9,23 @@ import (
 	"github.com/Okabe-Junya/golink-backend/auth"
 	"github.com/Okabe-Junya/golink-backend/handlers"
 	"github.com/Okabe-Junya/golink-backend/logger"
+	"github.com/Okabe-Junya/golink-backend/middleware"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Router handles HTTP routing
 type Router struct {
-	linkHandler   *handlers.LinkHandler
-	healthHandler *handlers.HealthHandler
+	linkHandler      *handlers.LinkHandler
+	healthHandler    *handlers.HealthHandler
+	analyticsHandler *handlers.AnalyticsHandler
 }
 
 // NewRouter creates a new Router
-func NewRouter(linkHandler *handlers.LinkHandler, healthHandler *handlers.HealthHandler) *Router {
+func NewRouter(linkHandler *handlers.LinkHandler, healthHandler *handlers.HealthHandler, analyticsHandler *handlers.AnalyticsHandler) *Router {
 	return &Router{
-		linkHandler:   linkHandler,
-		healthHandler: healthHandler,
+		linkHandler:      linkHandler,
+		healthHandler:    healthHandler,
+		analyticsHandler: analyticsHandler,
 	}
 }
 
@@ -56,7 +59,31 @@ func (r *Router) SetupRoutes() http.Handler {
 
 	// API routes
 	mux.HandleFunc("/api/links", r.handleLinks)
-	mux.HandleFunc("/api/links/", r.handleLinkByShort)
+	mux.HandleFunc("/api/links/", func(w http.ResponseWriter, req *http.Request) {
+		path := req.URL.Path[len("/api/links/"):]
+
+		// Handle bulk deletion of expired links
+		if path == "expired" {
+			r.linkHandler.DeleteExpiredLinks(w, req)
+			return
+		}
+
+		// Handle individual link operations
+		switch req.Method {
+		case http.MethodGet:
+			r.linkHandler.GetLink(w, req)
+		case http.MethodPut:
+			r.linkHandler.UpdateLink(w, req)
+		case http.MethodDelete:
+			r.linkHandler.DeleteLink(w, req)
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		}
+	})
+
+	// Analytics routes
+	mux.HandleFunc("/api/analytics/links/", r.handleAnalyticsByShort)
+	mux.HandleFunc("/api/analytics/top", r.handleTopLinks)
 
 	// Auth routes
 	mux.HandleFunc("/api/auth/login", auth.HandleLogin)
@@ -77,6 +104,8 @@ func (r *Router) SetupRoutes() http.Handler {
 		"endpoints": []string{
 			"/api/links",
 			"/api/links/{short}",
+			"/api/analytics/links/{short}",
+			"/api/analytics/top",
 			"/api/auth/login",
 			"/api/auth/callback",
 			"/api/auth/user",
@@ -91,18 +120,22 @@ func (r *Router) SetupRoutes() http.Handler {
 	// 1. RequestID middleware first to track requests through the system
 	// 2. Recovery middleware to catch panics
 	// 3. Metrics middleware to collect metrics
-	// 4. CORS middleware so headers are always set
-	// 5. SecurityHeaders middleware
-	// 6. RateLimit middleware
-	// 7. Auth middleware last
+	// 4. Cache middleware for faster responses
+	// 5. CORS middleware so headers are always set
+	// 6. SecurityHeaders middleware
+	// 7. RateLimit middleware
+	// 8. Error middleware for consistent error handling
+	// 9. Auth middleware last
 
 	var handler http.Handler = mux
 	handler = RequestIDMiddleware(handler)
 	handler = RecoveryMiddleware(handler)
 	handler = MetricsMiddleware(handler)
+	handler = middleware.CacheMiddleware(handler) // Update to use the middleware package
 	handler = CORSMiddleware(handler)
 	handler = SecurityHeadersMiddleware(handler)
 	handler = RateLimitMiddleware(handler)
+	handler = middleware.ErrorHandler(handler) // Update to use the middleware package
 
 	// Only apply auth middleware if not in test mode
 	if os.Getenv("TEST_MODE") != "true" {
@@ -150,22 +183,28 @@ func (r *Router) handleLinks(w http.ResponseWriter, req *http.Request) {
 	}
 }
 
-// handleLinkByShort handles /api/links/{short} requests
-func (r *Router) handleLinkByShort(w http.ResponseWriter, req *http.Request) {
+// handleAnalyticsByShort handles /api/analytics/links/{short} requests
+func (r *Router) handleAnalyticsByShort(w http.ResponseWriter, req *http.Request) {
 	// Extract the short code from the URL
 	path := req.URL.Path
-	if !strings.HasPrefix(path, "/api/links/") {
+	if !strings.HasPrefix(path, "/api/analytics/links/") {
 		http.NotFound(w, req)
 		return
 	}
 
 	switch req.Method {
 	case http.MethodGet:
-		r.linkHandler.GetLink(w, req)
-	case http.MethodPut:
-		r.linkHandler.UpdateLink(w, req)
-	case http.MethodDelete:
-		r.linkHandler.DeleteLink(w, req)
+		r.analyticsHandler.GetLinkStats(w, req)
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// handleTopLinks handles /api/analytics/top requests
+func (r *Router) handleTopLinks(w http.ResponseWriter, req *http.Request) {
+	switch req.Method {
+	case http.MethodGet:
+		r.analyticsHandler.GetTopLinks(w, req)
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}

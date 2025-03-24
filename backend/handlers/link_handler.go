@@ -54,6 +54,7 @@ func (h *LinkHandler) CreateLink(w http.ResponseWriter, r *http.Request) {
 		Short        string   `json:"short"`
 		URL          string   `json:"url"`
 		AccessLevel  string   `json:"access_level,omitempty"`
+		ExpiresAt    string   `json:"expires_at,omitempty"`
 		AllowedUsers []string `json:"allowed_users,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
@@ -126,6 +127,35 @@ func (h *LinkHandler) CreateLink(w http.ResponseWriter, r *http.Request) {
 		link.AllowedUsers = requestBody.AllowedUsers
 	} else {
 		link.AllowedUsers = []string{}
+	}
+
+	// Set expiry time if provided
+	if requestBody.ExpiresAt != "" {
+		expiryTime, err := time.Parse(time.RFC3339, requestBody.ExpiresAt)
+		if err != nil {
+			http.Error(w, "Invalid expiry date format. Use RFC3339 format (e.g. 2025-12-31T23:59:59Z)", http.StatusBadRequest)
+			logger.Error("Failed to parse expiry date", err, logger.Fields{
+				"expiryDate": requestBody.ExpiresAt,
+				"shortCode":  requestBody.Short,
+			})
+			return
+		}
+
+		// Ensure expiry time is in the future
+		if expiryTime.Before(time.Now()) {
+			http.Error(w, "Expiry date must be in the future", http.StatusBadRequest)
+			logger.Warn("Attempted to set expiry date in the past", logger.Fields{
+				"expiryDate": expiryTime.String(),
+				"shortCode":  requestBody.Short,
+			})
+			return
+		}
+
+		link.SetExpiry(expiryTime)
+		logger.Info("Link expiry set", logger.Fields{
+			"shortCode":  requestBody.Short,
+			"expiryDate": expiryTime.String(),
+		})
 	}
 
 	// Save the link
@@ -206,6 +236,16 @@ func (h *LinkHandler) GetLinks(w http.ResponseWriter, r *http.Request) {
 	if userID != "" {
 		var filteredLinks []*models.Link
 		for _, link := range links {
+			// Check if the link is expired and update the flag if needed
+			if link.IsLinkExpired() && !link.IsExpired {
+				link.IsExpired = true
+				if err := h.repo.Update(ctx, link); err != nil {
+					logger.Error("Failed to update link expired status", err, logger.Fields{
+						"short": link.Short,
+					})
+				}
+			}
+
 			// Public links are accessible to everyone
 			if link.AccessLevel == models.AccessLevels.Public {
 				filteredLinks = append(filteredLinks, link)
@@ -365,6 +405,7 @@ func (h *LinkHandler) UpdateLink(w http.ResponseWriter, r *http.Request) {
 	var requestBody struct {
 		URL          string   `json:"url,omitempty"`
 		AccessLevel  string   `json:"access_level,omitempty"`
+		ExpiresAt    string   `json:"expires_at,omitempty"`
 		AllowedUsers []string `json:"allowed_users,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&requestBody); err != nil {
@@ -387,8 +428,48 @@ func (h *LinkHandler) UpdateLink(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Update allowed users if provided and access level is restricted
+	var updateErr error
 	if link.AccessLevel == models.AccessLevels.Restricted && requestBody.AllowedUsers != nil {
 		link.AllowedUsers = requestBody.AllowedUsers
+		if updateErr = h.repo.Update(ctx, link); updateErr != nil {
+			logger.Error("Failed to update link allowed users", updateErr, logger.Fields{"short": short})
+		}
+	}
+
+	// Update expiry time if provided
+	if requestBody.ExpiresAt != "" {
+		expiryTime, err := time.Parse(time.RFC3339, requestBody.ExpiresAt)
+		if err != nil {
+			http.Error(w, "Invalid expiry date format. Use RFC3339 format (e.g. 2025-12-31T23:59:59Z)", http.StatusBadRequest)
+			logger.Error("Failed to parse expiry date in update", err, logger.Fields{
+				"expiryDate": requestBody.ExpiresAt,
+				"shortCode":  short,
+			})
+			return
+		}
+
+		// Ensure expiry time is in the future
+		if expiryTime.Before(time.Now()) {
+			http.Error(w, "Expiry date must be in the future", http.StatusBadRequest)
+			logger.Warn("Attempted to set expiry date in the past during update", logger.Fields{
+				"expiryDate": expiryTime.String(),
+				"shortCode":  short,
+			})
+			return
+		}
+
+		link.SetExpiry(expiryTime)
+		logger.Info("Link expiry updated", logger.Fields{
+			"shortCode":  short,
+			"expiryDate": expiryTime.String(),
+		})
+	} else if requestBody.ExpiresAt == "" && !link.ExpiresAt.IsZero() {
+		// If expiresAt is explicitly set to empty string, remove the expiration
+		link.ExpiresAt = time.Time{}
+		link.IsExpired = false
+		logger.Info("Link expiry removed", logger.Fields{
+			"shortCode": short,
+		})
 	}
 
 	link.UpdatedAt = time.Now()
@@ -512,6 +593,26 @@ func (h *LinkHandler) RedirectLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if the link is expired
+	if link.IsLinkExpired() {
+		// Mark the link as expired in the database if not already marked
+		if !link.IsExpired {
+			link.IsExpired = true
+			err := h.repo.Update(ctx, link)
+			if err != nil {
+				logger.Error("Failed to mark link as expired", err, logger.Fields{"short": path})
+			}
+		}
+
+		http.Error(w, "This link has expired", http.StatusGone)
+		logger.Info("Expired link access attempt", logger.Fields{
+			"short":     path,
+			"userID":    userID,
+			"expiresAt": link.ExpiresAt.Format(time.RFC3339),
+		})
+		return
+	}
+
 	// Check access control
 	hasAccess := true
 	if userID != "" {
@@ -586,5 +687,57 @@ func (h *LinkHandler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		http.Error(w, "failed to encode health check response", http.StatusInternalServerError)
+	}
+}
+
+// DeleteExpiredLinks handles DELETE /api/links/expired requests
+func (h *LinkHandler) DeleteExpiredLinks(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// Get user ID from context
+	userID, _ := getUserFromContext(r)
+
+	ctx := context.Background()
+	links, err := h.repo.GetAll(ctx)
+	if err != nil {
+		http.Error(w, "Failed to get links", http.StatusInternalServerError)
+		logger.Error("Failed to get links for bulk deletion", err, nil)
+		return
+	}
+
+	var deletedCount int
+	for _, link := range links {
+		// Only delete links that the user has permission to delete
+		if link.CreatedBy != userID && userID != "anonymous" {
+			continue
+		}
+
+		// Check if the link is expired
+		if link.IsLinkExpired() {
+			if err := h.repo.Delete(ctx, link.Short); err != nil {
+				logger.Error("Failed to delete expired link", err, logger.Fields{
+					"short": link.Short,
+				})
+				continue
+			}
+			deletedCount++
+			logger.Info("Deleted expired link", logger.Fields{
+				"short":  link.Short,
+				"userID": userID,
+			})
+		}
+	}
+
+	// Return success response with count
+	w.Header().Set("Content-Type", "application/json")
+	response := map[string]interface{}{
+		"deleted_count": deletedCount,
+		"message":       "Expired links deleted successfully",
+	}
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 	}
 }

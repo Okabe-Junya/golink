@@ -94,9 +94,10 @@ func main() {
 	// Create handlers
 	linkHandler := handlers.NewLinkHandler(linkRepo)
 	healthHandler := handlers.NewHealthHandler(linkRepo)
+	analyticsHandler := handlers.NewAnalyticsHandler(linkRepo)
 
 	// Set up routes
-	router := routes.NewRouter(linkHandler, healthHandler)
+	router := routes.NewRouter(linkHandler, healthHandler, analyticsHandler)
 	handler := router.SetupRoutes()
 
 	// Setup CORS

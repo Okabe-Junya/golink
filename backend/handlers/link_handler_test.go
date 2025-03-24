@@ -38,10 +38,10 @@ func TestCreateLink(t *testing.T) {
 	mockRepo.Create(context.Background(), testLink)
 
 	tests := []struct {
-		name           string
 		requestBody    map[string]string
-		expectedStatus int
+		name           string
 		userID         string
+		expectedStatus int
 	}{
 		{
 			name: "Valid Link Creation",
@@ -128,10 +128,10 @@ func TestGetLinks(t *testing.T) {
 	mockRepo.Create(ctx, privateLink)
 
 	tests := []struct {
-		name           string
 		queryParams    map[string]string
-		expectedStatus int
+		name           string
 		userID         string
+		expectedStatus int
 		expectedCount  int
 	}{
 		{
@@ -220,8 +220,8 @@ func TestGetLink(t *testing.T) {
 	tests := []struct {
 		name           string
 		shortCode      string
-		expectedStatus int
 		userID         string
+		expectedStatus int
 	}{
 		{
 			name:           "Get Public Link - No User ID",
@@ -289,11 +289,11 @@ func TestUpdateLink(t *testing.T) {
 	mockRepo.Create(ctx, publicLink)
 
 	tests := []struct {
+		requestBody    map[string]string
 		name           string
 		shortCode      string
-		requestBody    map[string]string
-		expectedStatus int
 		userID         string
+		expectedStatus int
 	}{
 		{
 			name:      "Update Link URL",
@@ -360,8 +360,8 @@ func TestDeleteLink(t *testing.T) {
 	tests := []struct {
 		name           string
 		shortCode      string
-		expectedStatus int
 		userID         string
+		expectedStatus int
 	}{
 		{
 			name:           "Delete Link",
@@ -416,9 +416,9 @@ func TestRedirectLink(t *testing.T) {
 	tests := []struct {
 		name           string
 		shortCode      string
-		expectedStatus int
 		userID         string
 		expectedURL    string
+		expectedStatus int
 	}{
 		{
 			name:           "Redirect Public Link",

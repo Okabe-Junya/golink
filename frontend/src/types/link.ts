@@ -8,4 +8,6 @@ export type Link = {
   access_level: string
   allowed_users: string[]
   click_count: number
+  expires_at?: string
+  is_expired: boolean
 }

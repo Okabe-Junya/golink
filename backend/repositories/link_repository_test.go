@@ -180,8 +180,8 @@ func TestBoundaryValues(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name      string
 		link      *models.Link
+		name      string
 		expectErr bool
 	}{
 		{

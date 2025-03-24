@@ -13,10 +13,14 @@ interface LinkFormProps {
   editMode: boolean
   /** Whether the form is currently processing a request */
   loading: boolean
+  /** Expiration date (optional) */
+  expiresAt?: string
   /** Callback function when URL input changes */
   onUrlChange: (value: string) => void
   /** Callback function when short code input changes */
   onShortChange: (value: string) => void
+  /** Callback function when expiration date changes */
+  onExpiresAtChange?: (value: string) => void
   /** Callback function when form is submitted */
   onSubmit: (e: React.FormEvent) => Promise<void>
   /** Callback function when edit is cancelled */
@@ -33,13 +37,16 @@ export const LinkForm: React.FC<LinkFormProps> = ({
   short,
   editMode,
   loading,
+  expiresAt,
   onUrlChange,
   onShortChange,
+  onExpiresAtChange,
   onSubmit,
   onCancel,
   appDomain,
 }) => {
   const [isDirty, setIsDirty] = useState(false)
+  const [useExpiry, setUseExpiry] = useState(false)
 
   const validateUrl = (value: string): boolean => {
     if (!value) return true // Empty is valid (will be caught by required)
@@ -57,6 +64,40 @@ export const LinkForm: React.FC<LinkFormProps> = ({
   const handleUrlChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setIsDirty(true)
     onUrlChange(e.target.value)
+  }
+
+  // Get tomorrow's date as minimum date for expiry
+  const getTomorrowDate = () => {
+    const tomorrow = new Date()
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    return tomorrow.toISOString().split("T")[0]
+  }
+
+  // Handle expiry date changes
+  const handleExpiryChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const date = e.target.value
+    if (onExpiresAtChange) {
+      // Convert local date to RFC3339 format
+      if (date) {
+        const selectedDate = new Date(date)
+        // Set time to end of day
+        selectedDate.setHours(23, 59, 59, 999)
+        onExpiresAtChange(selectedDate.toISOString())
+      } else {
+        onExpiresAtChange("")
+      }
+    }
+  }
+
+  // Format ISO date string to local date format for input
+  const formatDateForInput = (isoString?: string) => {
+    if (!isoString) return ""
+    try {
+      const date = new Date(isoString)
+      return date.toISOString().split("T")[0]
+    } catch {
+      return ""
+    }
   }
 
   return (
@@ -118,6 +159,33 @@ export const LinkForm: React.FC<LinkFormProps> = ({
               Use a memorable word or phrase (letters, numbers, hyphens and
               underscores only)
             </span>
+          </div>
+          <div className="form-control mb-4">
+            <label className="label cursor-pointer">
+              <span className="label-text">Set Expiry Date</span>
+              <input
+                type="checkbox"
+                className="toggle toggle-primary"
+                checked={useExpiry}
+                onChange={() => setUseExpiry(!useExpiry)}
+                disabled={loading}
+              />
+            </label>
+            {useExpiry && (
+              <div className="flex flex-col gap-1 mt-2">
+                <input
+                  type="date"
+                  className="input input-bordered w-full"
+                  min={getTomorrowDate()}
+                  value={formatDateForInput(expiresAt)}
+                  onChange={handleExpiryChange}
+                  disabled={loading}
+                />
+                <span className="label-text-alt">
+                  Set the date when the link will expire
+                </span>
+              </div>
+            )}
           </div>
           <div className="form-control mb-4">
             <div className="badge badge-neutral">Access Level: Public</div>

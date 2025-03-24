@@ -16,6 +16,7 @@ describe("LinkList", () => {
       access_level: "public",
       allowed_users: [],
       click_count: 10,
+      is_expired: false,
     },
     {
       id: "2",
@@ -27,6 +28,7 @@ describe("LinkList", () => {
       access_level: "restricted",
       allowed_users: ["user1@example.com"],
       click_count: 5,
+      is_expired: false,
     },
   ]
 

@@ -10,10 +10,13 @@ on:
 
 jobs:
   build:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     strategy:
       matrix:
         component: [ frontend, backend ]
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4

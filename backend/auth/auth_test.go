@@ -18,8 +18,8 @@ func TestInitAuth(t *testing.T) {
 	os.Unsetenv("GOOGLE_ALLOWED_DOMAIN")
 
 	tests := []struct {
-		name        string
 		envVars     map[string]string
+		name        string
 		wantEnabled bool
 		wantErr     bool
 	}{
@@ -163,10 +163,10 @@ func TestAuthMiddleware(t *testing.T) {
 func TestGetCurrentUser(t *testing.T) {
 	tests := []struct {
 		name           string
+		expectedUserID string
 		authEnabled    bool
 		withCookie     bool
 		expectedError  bool
-		expectedUserID string
 	}{
 		{
 			name:           "Auth Disabled",
