@@ -26,9 +26,10 @@ func setupTestRouter() http.Handler {
 	// ハンドラーを作成
 	linkHandler := handlers.NewLinkHandler(mockRepo)
 	healthHandler := handlers.NewHealthHandler(mockRepo)
+	analyticsHandler := handlers.NewAnalyticsHandler(mockRepo)
 
 	// ルーターを作成
-	router := routes.NewRouter(linkHandler, healthHandler)
+	router := routes.NewRouter(linkHandler, healthHandler, analyticsHandler)
 
 	return router.SetupRoutes()
 }
@@ -37,13 +38,13 @@ func TestRoutes(t *testing.T) {
 	handler := setupTestRouter()
 
 	tests := []struct {
+		body           interface{}
+		expectedBody   interface{}
 		name           string
 		method         string
 		path           string
-		body           interface{}
 		userID         string
 		expectedStatus int
-		expectedBody   interface{}
 	}{
 		{
 			name:           "Health Check",

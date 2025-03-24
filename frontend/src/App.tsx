@@ -6,6 +6,8 @@ import { Navbar } from "./components/Navbar"
 import { LinkForm } from "./components/LinkForm"
 import { LinkList } from "./components/LinkList"
 import { AuthProvider, useAuth } from "./contexts/AuthContext"
+import LinkAnalytics from "./components/LinkAnalytics"
+import QRCodeGenerator from "./components/QRCodeGenerator"
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8080/api"
 const APP_DOMAIN = import.meta.env.VITE_DOMAIN || "localhost:3001"
@@ -23,6 +25,13 @@ const AppContent: React.FC = () => {
   const [editMode, setEditMode] = useState<boolean>(false)
   const [editingLink, setEditingLink] = useState<Link | null>(null)
   const [darkMode, setDarkMode] = useState<boolean>(false)
+  const [selectedLinkId, setSelectedLinkId] = useState<string | undefined>(
+    undefined,
+  )
+  const [showAnalytics, setShowAnalytics] = useState<boolean>(false)
+  const [showQrCode, setShowQrCode] = useState<boolean>(false)
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>("")
+  const [expiresAt, setExpiresAt] = useState<string>("")
 
   // Get authentication state from auth context
   const { isAuthenticated, loading: authLoading } = useAuth()
@@ -82,6 +91,7 @@ const AppContent: React.FC = () => {
         url,
         access_level: "Public",
         allowed_users: [],
+        expires_at: expiresAt || undefined, // Include expiry date if set
       }
       await axios.post(`${API_BASE_URL}/links`, linkData)
       resetForm()
@@ -114,6 +124,7 @@ const AppContent: React.FC = () => {
     try {
       const linkData = {
         url,
+        expires_at: expiresAt || undefined,
       }
       await axios.put(`${API_BASE_URL}/links/${editingLink.short}`, linkData)
       setEditMode(false)
@@ -165,11 +176,13 @@ const AppContent: React.FC = () => {
     setEditingLink(link)
     setUrl(link.url)
     setShort(link.short)
+    setExpiresAt(link.expires_at || "") // 有効期限の設定を追加
   }
 
   const resetForm = () => {
     setUrl("")
     setShort("")
+    setExpiresAt("")
     setEditMode(false)
     setEditingLink(null)
   }
@@ -185,6 +198,40 @@ const AppContent: React.FC = () => {
     const newTheme = darkMode ? "light" : "dark"
     setDarkMode(!darkMode)
     document.documentElement.setAttribute("data-theme", newTheme)
+  }
+
+  // Add hasExpiredLinks check
+  const hasExpiredLinks = links.some((link) => link.is_expired)
+
+  // Add bulk delete handler
+  const handleBulkDeleteExpired = async () => {
+    if (
+      !window.confirm(
+        "Are you sure you want to delete all expired links? This action cannot be undone.",
+      )
+    ) {
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    setSuccess(null)
+
+    try {
+      const response = await axios.delete(`${API_BASE_URL}/links/expired`)
+      const result = response.data as { deleted_count: number; message: string }
+      setSuccess(`Successfully deleted ${result.deleted_count} expired links`)
+      fetchLinks()
+    } catch (error: unknown) {
+      console.error("Error deleting expired links:", error)
+      const axiosError = error as AxiosError
+      setError(
+        (axiosError.response?.data as string) ||
+          "Failed to delete expired links. Please try again.",
+      )
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -278,12 +325,52 @@ const AppContent: React.FC = () => {
           short={short}
           editMode={editMode}
           loading={loading}
+          expiresAt={expiresAt}
           onUrlChange={setUrl}
           onShortChange={setShort}
+          onExpiresAtChange={setExpiresAt}
           onSubmit={editMode ? handleUpdate : handleSubmit}
           onCancel={resetForm}
           appDomain={APP_DOMAIN}
         />
+
+        {showAnalytics && (
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-xl font-bold">Analytics</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAnalytics(false)
+                  setSelectedLinkId(undefined)
+                }}
+                className="btn btn-sm btn-ghost"
+              >
+                Close
+              </button>
+            </div>
+            <LinkAnalytics linkId={selectedLinkId} apiBaseUrl={API_BASE_URL} />
+          </div>
+        )}
+
+        {showQrCode && (
+          <div className="mb-6">
+            <div className="flex justify-between items-center mb-2">
+              <h2 className="text-xl font-bold">QR Code</h2>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowQrCode(false)
+                  setQrCodeUrl("")
+                }}
+                className="btn btn-sm btn-ghost"
+              >
+                Close
+              </button>
+            </div>
+            <QRCodeGenerator url={qrCodeUrl} />
+          </div>
+        )}
 
         <LinkList
           links={links}
@@ -292,6 +379,18 @@ const AppContent: React.FC = () => {
           onEdit={enterEditMode}
           onDelete={handleDelete}
           onCopy={handleCopy}
+          onViewAnalytics={(linkId) => {
+            setSelectedLinkId(linkId)
+            setShowAnalytics(true)
+            setShowQrCode(false)
+          }}
+          onGenerateQrCode={(url) => {
+            setQrCodeUrl(url)
+            setShowQrCode(true)
+            setShowAnalytics(false)
+          }}
+          hasExpiredLinks={hasExpiredLinks}
+          onBulkDeleteExpired={handleBulkDeleteExpired}
         />
       </div>
 

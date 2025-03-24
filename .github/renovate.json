@@ -65,10 +65,7 @@
       "matchDepTypes": [
         "action"
       ],
-      "pinDigests": true,
-      "matchPackageNames": [
-        "!actions/{/,}**"
-      ]
+      "pinDigests": true
     },
     {
       "groupName": "devDependencies",
