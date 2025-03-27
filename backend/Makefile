@@ -1,4 +1,7 @@
-DEFAULT_GOAL := build
+DEFAULT_GOAL := all
+
+.PHONY: all
+all: fmt build lint test-all
 
 .PHONY: build
 build:
