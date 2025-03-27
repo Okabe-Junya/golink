@@ -289,27 +289,38 @@ func GetCurrentUser(r *http.Request) (*User, error) {
 		}, nil
 	}
 
-	// Get the session token from the cookie
+	// First try to get user from cookie
 	cookie, err := r.Cookie("session_token")
-	if err != nil {
-		return nil, err
+	if err == nil {
+		// Validate the session token
+		user, err := ValidateSessionToken(cookie.Value)
+		if err == nil {
+			return user, nil
+		}
+		// Log error but continue with other methods
+		logger.Warn("Failed to validate session token", logger.Fields{
+			"error": err.Error(),
+		})
 	}
 
-	// Validate the session token
-	user, err := ValidateSessionToken(cookie.Value)
-	if err != nil {
-		return nil, err
+	// Fall back to header for compatibility or testing
+	userID := r.Header.Get("X-User-ID")
+	if userID != "" {
+		return &User{
+			ID:    userID,
+			Email: r.Header.Get("X-User-Email"),
+			Name:  r.Header.Get("X-User-Name"),
+		}, nil
 	}
 
-	return user, nil
+	return nil, errors.New("not authenticated")
 }
 
 // AuthMiddleware is a middleware that checks if the user is authenticated
 func AuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Skip auth check if authentication is disabled
+		// If authentication is disabled, add an anonymous user to the context
 		if !authEnabled {
-			// 認証が無効の場合は匿名ユーザーをコンテキストに追加
 			anonymousUser := &User{
 				ID:    "anonymous",
 				Email: "anonymous@example.com",

@@ -26,5 +26,5 @@ jobs:
         working-directory: ./backend
 
       - name: go test
-        run: make test
+        run: make test-all
         working-directory: ./backend

@@ -530,8 +530,8 @@ func (h *LinkHandler) DeleteLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 認証が無効または匿名ユーザーの場合は権限チェックをスキップ
-	// それ以外の場合は作成者のみが削除可能
+	// Skip permission check if auth is disabled or anonymous user
+	// Otherwise only the creator can delete this link
 	if userID != "anonymous" && link.CreatedBy != userID && auth.IsAuthEnabled() {
 		http.Error(w, "Only the creator can delete this link", http.StatusForbidden)
 		logger.Warn("Unauthorized delete attempt", logger.Fields{
