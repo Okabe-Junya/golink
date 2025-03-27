@@ -29,30 +29,6 @@ func NewRouter(linkHandler *handlers.LinkHandler, healthHandler *handlers.Health
 	}
 }
 
-// CORSMiddleware adds CORS headers to all responses
-func CORSMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Get CORS origin from environment variable
-		corsOrigin := os.Getenv("CORS_ORIGIN")
-		if corsOrigin == "" {
-			corsOrigin = "http://localhost:3001"
-			logger.Warn("CORS_ORIGIN not set, using default", logger.Fields{"origin": corsOrigin})
-		}
-		// Set CORS headers
-		w.Header().Set("Access-Control-Allow-Origin", corsOrigin)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID, Authorization")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-		// Handle preflight requests
-		if r.Method == http.MethodOptions {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		// Pass to the next middleware
-		next.ServeHTTP(w, r)
-	})
-}
-
 // SetupRoutes configures the HTTP routes
 func (r *Router) SetupRoutes() http.Handler {
 	mux := http.NewServeMux()
@@ -116,6 +92,13 @@ func (r *Router) SetupRoutes() http.Handler {
 		},
 	})
 
+	// Get CORS origin from environment variable
+	corsOrigin := os.Getenv("CORS_ORIGIN")
+	if corsOrigin == "" {
+		corsOrigin = "http://localhost:3001"
+		logger.Warn("CORS_ORIGIN not set, using default", logger.Fields{"origin": corsOrigin})
+	}
+
 	// Apply middlewares in the correct order
 	// 1. RequestID middleware first to track requests through the system
 	// 2. Recovery middleware to catch panics
@@ -127,22 +110,24 @@ func (r *Router) SetupRoutes() http.Handler {
 	// 8. Error middleware for consistent error handling
 	// 9. Auth middleware last
 
-	var handler http.Handler = mux
-	handler = RequestIDMiddleware(handler)
-	handler = RecoveryMiddleware(handler)
-	handler = MetricsMiddleware(handler)
-	handler = middleware.CacheMiddleware(handler) // Update to use the middleware package
-	handler = CORSMiddleware(handler)
-	handler = SecurityHeadersMiddleware(handler)
-	handler = RateLimitMiddleware(handler)
-	handler = middleware.ErrorHandler(handler) // Update to use the middleware package
+	// Chain all middlewares
+	middlewares := []middleware.Middleware{
+		middleware.RequestID(),
+		middleware.Recover(),
+		middleware.Metrics(),
+		middleware.CacheMiddleware,
+		middleware.CORS([]string{corsOrigin}),
+		middleware.SecurityHeaders(),
+		middleware.RateLimit(),
+		middleware.ErrorHandler,
+	}
 
 	// Only apply auth middleware if not in test mode
 	if os.Getenv("TEST_MODE") != "true" {
-		handler = auth.AuthMiddleware(handler)
+		middlewares = append(middlewares, auth.AuthMiddleware)
 	}
 
-	return handler
+	return middleware.Chain(mux, middlewares...)
 }
 
 // handleCurrentUser handles /api/auth/user requests
