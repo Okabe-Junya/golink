@@ -167,3 +167,8 @@ func createSignature(data string) (string, error) {
 	signature := base64.URLEncoding.EncodeToString(h.Sum(nil))
 	return signature, nil
 }
+
+// IsSessionEnabled returns whether session management is enabled
+func IsSessionEnabled() bool {
+	return IsAuthEnabled() && len(secretKey) > 0
+}
