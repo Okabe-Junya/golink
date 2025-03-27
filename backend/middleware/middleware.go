@@ -54,10 +54,18 @@ func Recover() Middleware {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			defer func() {
 				if err := recover(); err != nil {
-					logger.Error("Panic recovered", err.(error), logger.Fields{
-						"path":   r.URL.Path,
-						"method": r.Method,
-					})
+					switch e := err.(type) {
+					case error:
+						logger.Error("Panic recovered", e, logger.Fields{
+							"path":   r.URL.Path,
+							"method": r.Method,
+						})
+					default:
+						logger.Error("Panic recovered", errors.NewInternalError(nil), logger.Fields{
+							"path":   r.URL.Path,
+							"method": r.Method,
+						})
+					}
 					response.Error(w, errors.NewInternalError(nil))
 				}
 			}()
