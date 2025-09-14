@@ -1,6 +1,6 @@
 module github.com/Okabe-Junya/golink-backend
 
-go 1.23.0
+go 1.24.0
 
 toolchain go1.25.1
 
@@ -12,8 +12,8 @@ require (
 	github.com/sirupsen/logrus v1.9.3
 	github.com/stretchr/testify v1.11.1
 	golang.org/x/oauth2 v0.30.0
-	google.golang.org/api v0.248.0
-	google.golang.org/grpc v1.75.0
+	google.golang.org/api v0.249.0
+	google.golang.org/grpc v1.75.1
 )
 
 require (
