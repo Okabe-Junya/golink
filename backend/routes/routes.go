@@ -64,6 +64,7 @@ func (r *Router) SetupRoutes() http.Handler {
 	// Auth routes
 	mux.HandleFunc("/api/auth/login", auth.HandleLogin)
 	mux.HandleFunc("/api/auth/callback", auth.HandleCallback)
+	mux.HandleFunc("/api/auth/logout", auth.HandleLogout)
 	mux.HandleFunc("/api/auth/user", r.handleCurrentUser)
 
 	// Health check endpoints
@@ -84,6 +85,7 @@ func (r *Router) SetupRoutes() http.Handler {
 			"/api/analytics/top",
 			"/api/auth/login",
 			"/api/auth/callback",
+			"/api/auth/logout",
 			"/api/auth/user",
 			"/health",
 			"/health/detailed",

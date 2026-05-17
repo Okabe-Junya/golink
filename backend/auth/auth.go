@@ -155,6 +155,28 @@ func HandleLogin(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
 }
 
+// HandleLogout clears the session_token cookie so the client is no longer authenticated.
+// The session token is stateless (HMAC-signed claims), so no server-side revocation is needed —
+// instructing the browser to drop the cookie is sufficient.
+func HandleLogout(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session_token",
+		Value:    "",
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   r.TLS != nil,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
+	})
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // HandleCallback processes the OAuth callback from Google
 func HandleCallback(w http.ResponseWriter, r *http.Request) {
 	if !authEnabled {

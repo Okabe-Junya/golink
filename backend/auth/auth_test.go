@@ -217,3 +217,53 @@ func TestGetCurrentUser(t *testing.T) {
 		})
 	}
 }
+
+func TestHandleLogout(t *testing.T) {
+	tests := []struct {
+		name           string
+		method         string
+		expectedStatus int
+		expectsClear   bool
+	}{
+		{
+			name:           "POST clears cookie",
+			method:         http.MethodPost,
+			expectedStatus: http.StatusNoContent,
+			expectsClear:   true,
+		},
+		{
+			name:           "GET is rejected",
+			method:         http.MethodGet,
+			expectedStatus: http.StatusMethodNotAllowed,
+			expectsClear:   false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(tc.method, "/api/auth/logout", nil)
+			req.AddCookie(&http.Cookie{Name: "session_token", Value: "some-token"})
+			rr := httptest.NewRecorder()
+
+			auth.HandleLogout(rr, req)
+
+			assert.Equal(t, tc.expectedStatus, rr.Code)
+
+			if !tc.expectsClear {
+				return
+			}
+
+			cookies := rr.Result().Cookies()
+			var sessionCookie *http.Cookie
+			for _, c := range cookies {
+				if c.Name == "session_token" {
+					sessionCookie = c
+					break
+				}
+			}
+			assert.NotNil(t, sessionCookie, "session_token cookie should be set in response")
+			assert.Empty(t, sessionCookie.Value)
+			assert.Less(t, sessionCookie.MaxAge, 0, "MaxAge should be negative to delete cookie")
+		})
+	}
+}
