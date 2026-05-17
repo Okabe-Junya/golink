@@ -2,7 +2,7 @@ module github.com/Okabe-Junya/golink-backend
 
 go 1.25.0
 
-toolchain go1.25.4
+toolchain go1.26.3
 
 require (
 	cloud.google.com/go/firestore v1.20.0
