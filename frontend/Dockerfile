@@ -1,11 +1,11 @@
-FROM node:24.11.1 as builder
+FROM node:24.15.0 as builder
 WORKDIR /app
 COPY package*.json ./
 RUN npm install
 COPY . .
 RUN npm run build
 
-FROM nginx:1.29.3-alpine
+FROM nginx:1.31.0-alpine
 COPY --from=builder /app/build /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 EXPOSE 80
