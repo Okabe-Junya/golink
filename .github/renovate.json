@@ -71,6 +71,12 @@
       "groupName": "devDependencies",
       "matchDepTypes": [
         "devDependencies"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
       ]
     },
     {
