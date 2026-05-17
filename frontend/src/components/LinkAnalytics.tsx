@@ -1,5 +1,5 @@
 import type React from "react"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import axios from "axios"
 import type { Link } from "../types/link"
 
@@ -31,31 +31,26 @@ const LinkAnalytics: React.FC<LinkAnalyticsProps> = ({
   const [error, setError] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<"stats" | "top">("stats")
 
-  useEffect(() => {
-    if (activeTab === "stats" && linkId) {
-      fetchLinkStats(linkId)
-    } else if (activeTab === "top") {
-      fetchTopLinks()
-    }
-  }, [linkId, activeTab])
+  const fetchLinkStats = useCallback(
+    async (id: string) => {
+      setLoading(true)
+      setError(null)
+      try {
+        const response = await axios.get<LinkStats>(
+          `${apiBaseUrl}/analytics/links/${id}`,
+        )
+        setLinkStats(response.data)
+      } catch (err) {
+        console.error("Error fetching link stats:", err)
+        setError("Failed to load link statistics")
+      } finally {
+        setLoading(false)
+      }
+    },
+    [apiBaseUrl],
+  )
 
-  const fetchLinkStats = async (id: string) => {
-    setLoading(true)
-    setError(null)
-    try {
-      const response = await axios.get<LinkStats>(
-        `${apiBaseUrl}/analytics/links/${id}`,
-      )
-      setLinkStats(response.data)
-    } catch (err) {
-      console.error("Error fetching link stats:", err)
-      setError("Failed to load link statistics")
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const fetchTopLinks = async () => {
+  const fetchTopLinks = useCallback(async () => {
     setLoading(true)
     setError(null)
     try {
@@ -69,7 +64,15 @@ const LinkAnalytics: React.FC<LinkAnalyticsProps> = ({
     } finally {
       setLoading(false)
     }
-  }
+  }, [apiBaseUrl])
+
+  useEffect(() => {
+    if (activeTab === "stats" && linkId) {
+      fetchLinkStats(linkId)
+    } else if (activeTab === "top") {
+      fetchTopLinks()
+    }
+  }, [linkId, activeTab, fetchLinkStats, fetchTopLinks])
 
   if (loading) {
     return (
