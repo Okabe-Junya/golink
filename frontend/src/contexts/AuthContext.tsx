@@ -84,9 +84,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Logout handling
   const logout = async () => {
-    // Just remove session on client side for now (should have backend logout API in production)
-    document.cookie =
-      "session_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;"
+    try {
+      await axios.post(
+        `${API_BASE_URL}/auth/logout`,
+        null,
+        { withCredentials: true },
+      )
+    } catch (err) {
+      console.error("Logout request failed:", err)
+    }
     setUser(null)
   }
 
