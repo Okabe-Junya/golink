@@ -20,7 +20,7 @@
     "check": "npx @biomejs/biome check --write ./src"
   },
   "devDependencies": {
-    "@babel/preset-env": "^7.26.9",
+    "@babel/preset-env": "^8.0.0",
     "@babel/preset-react": "^7.26.3",
     "@babel/preset-typescript": "^7.26.0",
     "@biomejs/biome": "2.5.0",
