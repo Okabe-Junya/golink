@@ -20,7 +20,7 @@
     "check": "npx @biomejs/biome check --write ./src"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.1",
+    "@biomejs/biome": "2.5.2",
     "@tailwindcss/postcss": "^4.3.0",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.2.0",
