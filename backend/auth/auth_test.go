@@ -218,6 +218,40 @@ func TestGetCurrentUser(t *testing.T) {
 	}
 }
 
+// TestGetCurrentUser_HeaderNotTrustedInProduction pins the fix for the auth-bypass
+// where GetCurrentUser trusted an attacker-controlled X-User-ID header. With auth
+// enabled and no session cookie, the header must NOT authenticate a user unless
+// TEST_MODE is explicitly set.
+func TestGetCurrentUser_HeaderNotTrustedInProduction(t *testing.T) {
+	t.Setenv("AUTH_DISABLED", "false")
+	t.Setenv("GOOGLE_CLIENT_ID", "test-client-id")
+	t.Setenv("GOOGLE_CLIENT_SECRET", "test-client-secret")
+	if err := auth.InitAuth(); err != nil {
+		t.Fatalf("InitAuth failed: %v", err)
+	}
+
+	newReq := func() *http.Request {
+		req := httptest.NewRequest("GET", "/api/links", nil)
+		req.Header.Set("X-User-ID", "victim@example.com")
+		return req
+	}
+
+	t.Run("production rejects the header", func(t *testing.T) {
+		t.Setenv("TEST_MODE", "")
+		user, err := auth.GetCurrentUser(newReq())
+		assert.Error(t, err)
+		assert.Nil(t, user)
+	})
+
+	t.Run("test mode still honors the header", func(t *testing.T) {
+		t.Setenv("TEST_MODE", "true")
+		user, err := auth.GetCurrentUser(newReq())
+		assert.NoError(t, err)
+		assert.NotNil(t, user)
+		assert.Equal(t, "victim@example.com", user.ID)
+	})
+}
+
 func TestHandleLogout(t *testing.T) {
 	tests := []struct {
 		name           string

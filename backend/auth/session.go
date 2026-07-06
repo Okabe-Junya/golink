@@ -123,7 +123,8 @@ func ValidateSessionToken(token string) (*User, error) {
 	if err != nil {
 		return nil, err
 	}
-	if signature != expectedSignature {
+	// Constant-time comparison to avoid leaking the expected signature via timing.
+	if !hmac.Equal([]byte(signature), []byte(expectedSignature)) {
 		return nil, errors.New("invalid token signature")
 	}
 

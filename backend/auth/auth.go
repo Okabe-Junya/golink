@@ -325,14 +325,18 @@ func GetCurrentUser(r *http.Request) (*User, error) {
 		})
 	}
 
-	// Fall back to header for compatibility or testing
-	userID := r.Header.Get("X-User-ID")
-	if userID != "" {
-		return &User{
-			ID:    userID,
-			Email: r.Header.Get("X-User-Email"),
-			Name:  r.Header.Get("X-User-Name"),
-		}, nil
+	// Trust the X-User-ID header as identity ONLY in test mode. In production this
+	// header is attacker-controlled, so honoring it would let any unauthenticated
+	// client impersonate an arbitrary user (auth bypass).
+	if os.Getenv("TEST_MODE") == "true" {
+		userID := r.Header.Get("X-User-ID")
+		if userID != "" {
+			return &User{
+				ID:    userID,
+				Email: r.Header.Get("X-User-Email"),
+				Name:  r.Header.Get("X-User-Name"),
+			}, nil
+		}
 	}
 
 	return nil, errors.New("not authenticated")

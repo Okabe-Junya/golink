@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/url"
+	"os"
 	"regexp"
 	"strings"
 	"time"
@@ -33,12 +35,29 @@ func getUserFromContext(r *http.Request) (string, string) {
 		return user.ID, user.Email
 	}
 
-	// Fall back to header for backward compatibility
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		userID = "anonymous"
+	// In production the AuthMiddleware always sets the context user before a handler
+	// runs, so reaching here means auth is disabled or we are under test. Only trust
+	// the X-User-ID header in test mode; otherwise it is attacker-controlled.
+	if os.Getenv("TEST_MODE") == "true" {
+		if userID := r.Header.Get("X-User-ID"); userID != "" {
+			return userID, ""
+		}
 	}
-	return userID, ""
+	return "anonymous", ""
+}
+
+// validateTargetURL ensures a link target is an absolute http(s) URL, rejecting
+// schemes such as javascript:, data:, or file: that would enable stored XSS when
+// the target is later rendered as an anchor href or emitted in a redirect Location.
+func validateTargetURL(raw string) bool {
+	u, err := url.Parse(raw)
+	if err != nil {
+		return false
+	}
+	if u.Scheme != "http" && u.Scheme != "https" {
+		return false
+	}
+	return u.Host != ""
 }
 
 // CreateLink handles POST /api/links requests
@@ -78,6 +97,10 @@ func (h *LinkHandler) CreateLink(w http.ResponseWriter, r *http.Request) {
 			"short":      requestBody.Short,
 			"defaultURL": targetURL,
 		})
+	} else if !validateTargetURL(targetURL) {
+		http.Error(w, "URL must be an absolute http or https URL", http.StatusBadRequest)
+		logger.Warn("Invalid target URL", logger.Fields{"short": requestBody.Short})
+		return
 	}
 
 	// Validate short code format (alphanumeric and hyphen only)
@@ -390,9 +413,10 @@ func (h *LinkHandler) UpdateLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only the creator can update this link
-	// If userId is anonymous, this allows also update by anonymous users
-	if userID != "anonymous" && link.CreatedBy != userID && auth.IsAuthEnabled() {
+	// Only the creator can update this link. When auth is disabled the tool runs in
+	// anonymous mode and edits are open; when auth is enabled ownership is enforced
+	// (an "anonymous" userID must not be able to edit another user's link).
+	if auth.IsAuthEnabled() && link.CreatedBy != userID {
 		http.Error(w, "Only the creator can update this link", http.StatusForbidden)
 		logger.Warn("Unauthorized update attempt", logger.Fields{
 			"short":       short,
@@ -416,6 +440,11 @@ func (h *LinkHandler) UpdateLink(w http.ResponseWriter, r *http.Request) {
 
 	// Update the link fields
 	if requestBody.URL != "" {
+		if !validateTargetURL(requestBody.URL) {
+			http.Error(w, "URL must be an absolute http or https URL", http.StatusBadRequest)
+			logger.Warn("Invalid target URL on update", logger.Fields{"short": short})
+			return
+		}
 		link.URL = requestBody.URL
 	}
 
@@ -530,9 +559,10 @@ func (h *LinkHandler) DeleteLink(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Skip permission check if auth is disabled or anonymous user
-	// Otherwise only the creator can delete this link
-	if userID != "anonymous" && link.CreatedBy != userID && auth.IsAuthEnabled() {
+	// When auth is disabled the tool runs in anonymous mode and deletes are open;
+	// when auth is enabled only the creator can delete this link (an "anonymous"
+	// userID must not be able to delete another user's link).
+	if auth.IsAuthEnabled() && link.CreatedBy != userID {
 		http.Error(w, "Only the creator can delete this link", http.StatusForbidden)
 		logger.Warn("Unauthorized delete attempt", logger.Fields{
 			"short":       short,
@@ -710,8 +740,9 @@ func (h *LinkHandler) DeleteExpiredLinks(w http.ResponseWriter, r *http.Request)
 
 	var deletedCount int
 	for _, link := range links {
-		// Only delete links that the user has permission to delete
-		if link.CreatedBy != userID && userID != "anonymous" {
+		// Only delete links the user owns. When auth is disabled (anonymous mode)
+		// all expired links are eligible; when enabled, ownership is enforced.
+		if auth.IsAuthEnabled() && link.CreatedBy != userID {
 			continue
 		}
 
