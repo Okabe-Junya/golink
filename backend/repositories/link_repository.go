@@ -78,11 +78,13 @@ func (r *LinkRepository) GetByShort(ctx context.Context, short string) (*models.
 	// Update expiry status if needed
 	if !link.ExpiresAt.IsZero() && time.Now().After(link.ExpiresAt) && !link.IsExpired {
 		link.IsExpired = true
-		// Update the link in the background, don't block the response
+		// Persist in the background on a *copy*: the background writer mutates
+		// UpdatedAt and marshals the struct while the caller concurrently reads the
+		// returned pointer, so they must not share the same *Link (data race).
+		linkCopy := link
 		go func() {
-			// Create a new context for the background operation
 			bgCtx := context.Background()
-			if err := r.Update(bgCtx, &link); err != nil {
+			if err := r.Update(bgCtx, &linkCopy); err != nil {
 				// We're in a goroutine, so we can't return the error
 				// Ideally, we would log this error
 			}
@@ -160,21 +162,21 @@ func (r *LinkRepository) Delete(ctx context.Context, short string) error {
 	return nil
 }
 
-// IncrementClickCount increments the click count for a link
+// IncrementClickCount increments the click count for a link.
+//
+// This fires from a background goroutine on every redirect, so a read-modify-write
+// of the whole document would lose increments under concurrency and, worse, clobber
+// a concurrent edit (URL/access-level change) with a stale snapshot. Update only the
+// counter field via an atomic server-side increment instead.
 func (r *LinkRepository) IncrementClickCount(ctx context.Context, short string) error {
-	// Get the link
-	link, err := r.GetByShort(ctx, short)
+	_, err := r.client.Collection(r.collection).Doc(short).Update(ctx, []firestore.Update{
+		{Path: "click_count", Value: firestore.Increment(1)},
+		{Path: "updated_at", Value: time.Now()},
+	})
 	if err != nil {
-		return err // Already wrapped by GetByShort
-	}
-
-	// Increment the click count
-	link.ClickCount++
-	link.UpdatedAt = time.Now()
-
-	// Update the link
-	_, err = r.client.Collection(r.collection).Doc(short).Set(ctx, link)
-	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return errors.NewNotFound(fmt.Sprintf("Link '%s' not found", short))
+		}
 		return errors.NewInternalError(fmt.Errorf("Error updating click count: %w", err))
 	}
 
