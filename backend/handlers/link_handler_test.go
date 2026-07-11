@@ -28,6 +28,10 @@ func createTestLink(short, url, userID string) *models.Link {
 }
 
 func TestCreateLink(t *testing.T) {
+	// TEST_MODE lets getUserFromContext honor the X-User-ID header (see #186);
+	// without it every request resolves to "anonymous" regardless of the header.
+	t.Setenv("TEST_MODE", "true")
+
 	// Setup
 	handler, mockRepo := setupTestHandler()
 
@@ -113,6 +117,10 @@ func TestCreateLink(t *testing.T) {
 }
 
 func TestGetLinks(t *testing.T) {
+	// TEST_MODE lets getUserFromContext honor the X-User-ID header (see #186);
+	// without it every request resolves to "anonymous" regardless of the header.
+	t.Setenv("TEST_MODE", "true")
+
 	// Setup
 	handler, mockRepo := setupTestHandler()
 
@@ -204,6 +212,10 @@ func TestGetLinks(t *testing.T) {
 }
 
 func TestGetLink(t *testing.T) {
+	// TEST_MODE lets getUserFromContext honor the X-User-ID header (see #186);
+	// without it every request resolves to "anonymous" regardless of the header.
+	t.Setenv("TEST_MODE", "true")
+
 	// Setup
 	handler, mockRepo := setupTestHandler()
 
@@ -280,6 +292,10 @@ func TestGetLink(t *testing.T) {
 }
 
 func TestUpdateLink(t *testing.T) {
+	// TEST_MODE lets getUserFromContext honor the X-User-ID header (see #186);
+	// without it every request resolves to "anonymous" regardless of the header.
+	t.Setenv("TEST_MODE", "true")
+
 	// Setup
 	handler, mockRepo := setupTestHandler()
 
@@ -349,6 +365,10 @@ func TestUpdateLink(t *testing.T) {
 }
 
 func TestDeleteLink(t *testing.T) {
+	// TEST_MODE lets getUserFromContext honor the X-User-ID header (see #186);
+	// without it every request resolves to "anonymous" regardless of the header.
+	t.Setenv("TEST_MODE", "true")
+
 	// Setup
 	handler, mockRepo := setupTestHandler()
 
@@ -400,6 +420,10 @@ func TestDeleteLink(t *testing.T) {
 }
 
 func TestRedirectLink(t *testing.T) {
+	// TEST_MODE lets getUserFromContext honor the X-User-ID header (see #186);
+	// without it every request resolves to "anonymous" regardless of the header.
+	t.Setenv("TEST_MODE", "true")
+
 	// Setup
 	handler, mockRepo := setupTestHandler()
 
