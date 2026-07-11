@@ -13,8 +13,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// setupTestHandler creates a new LinkHandler with a mock repository for testing
-func setupTestHandler() (*LinkHandler, *mocks.MockLinkRepository) {
+// setupTestHandler creates a new LinkHandler with a mock repository for testing.
+// TEST_MODE is the same test-only authentication contract used elsewhere in this
+// codebase (see auth.GetCurrentUser / getUserFromContext): only under TEST_MODE
+// does the handler trust an X-User-ID header as identity, since these tests call
+// handler methods directly and never pass through AuthMiddleware.
+func setupTestHandler(t *testing.T) (*LinkHandler, *mocks.MockLinkRepository) {
+	t.Setenv("TEST_MODE", "true")
 	mockRepo := mocks.NewMockLinkRepository()
 	handler := NewLinkHandler(mockRepo)
 	return handler, mockRepo
@@ -29,7 +34,7 @@ func createTestLink(short, url, userID string) *models.Link {
 
 func TestCreateLink(t *testing.T) {
 	// Setup
-	handler, mockRepo := setupTestHandler()
+	handler, mockRepo := setupTestHandler(t)
 
 	// Create a test link
 	testLink := createTestLink("test", "https://example.com", "user1")
@@ -114,7 +119,7 @@ func TestCreateLink(t *testing.T) {
 
 func TestGetLinks(t *testing.T) {
 	// Setup
-	handler, mockRepo := setupTestHandler()
+	handler, mockRepo := setupTestHandler(t)
 
 	// Add some test links to the mock repository
 	ctx := context.Background()
@@ -205,7 +210,7 @@ func TestGetLinks(t *testing.T) {
 
 func TestGetLink(t *testing.T) {
 	// Setup
-	handler, mockRepo := setupTestHandler()
+	handler, mockRepo := setupTestHandler(t)
 
 	// Add a test link to the mock repository
 	ctx := context.Background()
@@ -281,7 +286,7 @@ func TestGetLink(t *testing.T) {
 
 func TestUpdateLink(t *testing.T) {
 	// Setup
-	handler, mockRepo := setupTestHandler()
+	handler, mockRepo := setupTestHandler(t)
 
 	// Add a test link to the mock repository
 	ctx := context.Background()
@@ -350,7 +355,7 @@ func TestUpdateLink(t *testing.T) {
 
 func TestDeleteLink(t *testing.T) {
 	// Setup
-	handler, mockRepo := setupTestHandler()
+	handler, mockRepo := setupTestHandler(t)
 
 	// Add a test link to the mock repository
 	ctx := context.Background()
@@ -401,7 +406,7 @@ func TestDeleteLink(t *testing.T) {
 
 func TestRedirectLink(t *testing.T) {
 	// Setup
-	handler, mockRepo := setupTestHandler()
+	handler, mockRepo := setupTestHandler(t)
 
 	// Add test links to the mock repository
 	ctx := context.Background()
@@ -479,7 +484,7 @@ func TestRedirectLink(t *testing.T) {
 
 func TestHealthCheck(t *testing.T) {
 	// Setup
-	handler, _ := setupTestHandler()
+	handler, _ := setupTestHandler(t)
 
 	// Create request
 	req, _ := http.NewRequest(http.MethodGet, "/health", nil)
