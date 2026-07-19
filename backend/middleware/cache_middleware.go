@@ -154,6 +154,16 @@ func CacheMiddleware(next http.Handler) http.Handler {
 			return
 		}
 
+		// Skip caching for authenticated requests. This middleware runs before
+		// AuthMiddleware and its cache key has no user dimension, so caching a
+		// response scoped to one user (e.g. their private/restricted links) would
+		// serve it to any other client that hits the same path. Anonymous requests
+		// only ever see public data, so they remain safe to cache and share.
+		if _, err := r.Cookie("session_token"); err == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		// Generate cache key
 		key := createCacheKey(r)
 
