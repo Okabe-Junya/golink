@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"cloud.google.com/go/firestore"
-	firebase "firebase.google.com/go"
+	firebase "firebase.google.com/go/v4"
 	"github.com/Okabe-Junya/golink-backend/logger"
 	"github.com/Okabe-Junya/golink-backend/models"
 	"github.com/Okabe-Junya/golink-backend/pkg/config"
